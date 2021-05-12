@@ -1,7 +1,0 @@
-name: Run ecephys_etl_pipeline tests
-on: [push]
-jobs:
-  Explore-GitHub-Actions:
-    runs-on: ubuntu-latest
-    steps:
-      - run: "pytest ."
