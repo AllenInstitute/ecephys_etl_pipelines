@@ -1,5 +1,47 @@
+from typing import Union
+
 import numpy as np
 import scipy.spatial.distance as distance
+
+
+def trim_discontiguous_times(
+    times: Union[list, np.ndarray],
+    threshold: int = 100
+) -> np.ndarray:
+    """Trim an array of timestamps to remove any timestamps that occur
+    after a large discontinuity (100 * median timestamp interval).
+
+    Parameters
+    ----------
+    times : Union[list, np.ndarray]
+        An array or list of timestamps
+    threshold : int, optional
+        The threshold coeeficient for considering a time interval as a
+        discontinuity. Time intervals larger than the median time interval
+        multiplied by the 'threshold' will be considered discontinuities.
+        By default 100
+
+    Returns
+    -------
+    np.ndarray
+        An array of timestamps that have been trimmed.
+    """
+    times = np.array(times)
+    intervals = np.diff(times)
+
+    med_interval = np.median(intervals)
+    interval_threshold = med_interval * threshold
+
+    gap_indices = np.where(intervals > interval_threshold)[0]
+
+    # A special case for when the first element is a discontiguity
+    if np.abs(intervals[0]) > interval_threshold:
+        gap_indices = [0]
+
+    if len(gap_indices) == 0:
+        return times
+
+    return times[:gap_indices[0] + 1]
 
 
 def trimmed_stats(data, pctiles=(10, 90)):
