@@ -1,20 +1,18 @@
 import functools
 
 import numpy as np
+from argschema import ArgSchemaParser
 
-from allensdk.brain_observatory.argschema_utilities import \
-    ArgSchemaParserPlus, \
-    write_or_print_outputs
-from allensdk.brain_observatory.ecephys.file_io.ecephys_sync_dataset import (
+from ecephys_etl.data_extractors.ecephys_sync_dataset import (
     EcephysSyncDataset,
 )
-from allensdk.brain_observatory.ecephys.file_io.stim_file import (
-    CamStimOnePickleStimFile,
+from ecephys_etl.data_extractors.stim_file import CamStimOnePickleStimFile
+from ecephys_etl.modules.vcn_create_stimulus_table import ephys_pre_spikes
+from ecephys_etl.modules.vcn_create_stimulus_table import naming_utilities
+from ecephys_etl.modules.vcn_create_stimulus_table import output_validation
+from ecephys_etl.modules.vcn_creat_stimulus_table._schemas import (
+    InputParameters, OutputSchema
 )
-from . import ephys_pre_spikes
-from . import naming_utilities
-from . import output_validation
-from ._schemas import InputParameters, OutputSchema
 
 
 def build_stimulus_table(
@@ -91,14 +89,14 @@ def build_stimulus_table(
     }
 
 
-def main():
-    mod = ArgSchemaParserPlus(
+if __name__ == "__main__":
+    parser = ArgSchemaParser(
         schema_type=InputParameters, output_schema_type=OutputSchema
     )
-    output = build_stimulus_table(**mod.args)
+    output = build_stimulus_table(**parser.args)
 
-    write_or_print_outputs(data=output, parser=mod)
-
-
-if __name__ == "__main__":
-    main()
+    output.update({"input_parameters": parser.args})
+    if 'output_json' in parser.args:
+        parser.output(output, indent=2)
+    else:
+        print(parser.get_output_json(output))
