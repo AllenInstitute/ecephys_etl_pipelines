@@ -1,1 +1,6 @@
+argschema<3.0.0
+h5py
 numpy
+scipy
+matplotlib
+pandas
