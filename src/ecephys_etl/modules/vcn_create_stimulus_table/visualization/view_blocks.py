@@ -1,5 +1,4 @@
 import argparse
-import itertools as it
 
 import numpy as np
 import pandas as pd
@@ -7,7 +6,9 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 
 
-def build_colormap(table, existing_map={}, base_colors=sns.color_palette("pastel")):
+def build_colormap(
+    table, existing_map={}, base_colors=sns.color_palette("pastel")
+):
 
     colormap = {}
 
@@ -29,7 +30,11 @@ def build_colormap(table, existing_map={}, base_colors=sns.color_palette("pastel
 
 def get_blocks(table):
     changes = np.where(np.diff(table["stimulus_block"].values))[0] + 1
-    changes = np.sort(np.unique(np.concatenate([changes, [0, table.shape[0]]])))
+    changes = np.sort(
+        np.unique(
+            np.concatenate([changes, [0, table.shape[0]]])
+        )
+    )
 
     blocks = []
     for ii, (low, high) in enumerate(zip(changes[:-1], changes[1:])):
@@ -42,28 +47,35 @@ def get_blocks(table):
                     recorded_blocks
                 )
             )
-        else:
-            recorded_block = recorded_blocks[0]
 
         start = block["Start"].values[0]
         end = block["End"].values[-1]
 
         names = np.unique(block["stimulus_name"].values)
         if len(names) > 1:
-            raise ValueError("expected one name per block, found: {}".format(names))
+            raise ValueError(
+                "expected one name per block, found: {}".format(names)
+            )
         else:
             name = names[0]
 
         indices = np.unique(block["stimulus_index"].values)
         if len(indices) > 1:
-            raise ValueError("expected one index per block, found: {}".format(indices))
+            raise ValueError(
+                "expected one index per block, found: {}".format(indices)
+            )
         else:
             index = indices[0]
 
         if isinstance(name, float) and np.isnan(name):
             name = "spontaneous_activity"
 
-        blocks.append({"name": name, "index": index, "start": start, "end": end})
+        blocks.append({
+            "name": name,
+            "index": index,
+            "start": start,
+            "end": end
+        })
 
     return blocks
 
@@ -114,7 +126,9 @@ def main(table_csv_path):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "table_csv_path", type=str, help="filesystem path to stimulus table csv"
+        "table_csv_path",
+        type=str,
+        help="filesystem path to stimulus table csv"
     )
 
     args = parser.parse_args()
