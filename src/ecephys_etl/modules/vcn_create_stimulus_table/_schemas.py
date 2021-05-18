@@ -74,10 +74,10 @@ class InputParameters(ArgSchema):
             "they last fewer that this many seconds."
         )
     )
-    maximum_expected_spontanous_activity_duration = Float(
+    maximum_expected_spontaneous_activity_duration = Float(
         default=1225.02541,
         help=(
-            "Validation will fail if a spontanous activity epoch "
+            "Validation will fail if a spontaneous activity epoch "
             "longer than this one is computed."
         )
     )

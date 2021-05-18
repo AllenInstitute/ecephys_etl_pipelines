@@ -35,17 +35,17 @@ def validate_epoch_order(table, time_keys=("Start", "End")):
 def validate_max_spontaneous_epoch_duration(
     table,
     max_duration,
-    get_spontanous_epochs=None,
+    get_spontaneous_epochs=None,
     index_key="stimulus_index",
     start_key="Start",
     end_key="End",
 ):
-    if get_spontanous_epochs is None:
+    if get_spontaneous_epochs is None:
 
         def get_spontaneous_epochs(table: pd.DataFrame) -> pd.DataFrame:
             return table[np.isnan(table[index_key])]
 
-    spontaneous_epochs = get_spontanous_epochs(table)
+    spontaneous_epochs = get_spontaneous_epochs(table)
     durations = (
         spontaneous_epochs[end_key].values
         - spontaneous_epochs[start_key].values

@@ -10,7 +10,7 @@ from ecephys_etl.data_extractors.stim_file import CamStimOnePickleStimFile
 from ecephys_etl.modules.vcn_create_stimulus_table import ephys_pre_spikes
 from ecephys_etl.modules.vcn_create_stimulus_table import naming_utilities
 from ecephys_etl.modules.vcn_create_stimulus_table import output_validation
-from ecephys_etl.modules.vcn_creat_stimulus_table._schemas import (
+from ecephys_etl.modules.vcn_create_stimulus_table._schemas import (
     InputParameters, OutputSchema
 )
 
@@ -22,7 +22,7 @@ def build_stimulus_table(
         minimum_spontaneous_activity_duration,
         extract_const_params_from_repr,
         drop_const_params,
-        maximum_expected_spontanous_activity_duration,
+        maximum_expected_spontaneous_activity_duration,
         stimulus_name_map,
         column_name_map,
         output_stimulus_table_path,
@@ -66,7 +66,7 @@ def build_stimulus_table(
     output_validation.validate_epoch_durations(
         stim_table_full, fail_on_negative_durations=fail_on_negative_duration)
     output_validation.validate_max_spontaneous_epoch_duration(
-        stim_table_full, maximum_expected_spontanous_activity_duration
+        stim_table_full, maximum_expected_spontaneous_activity_duration
     )
 
     stim_table_full = naming_utilities.collapse_columns(stim_table_full)
