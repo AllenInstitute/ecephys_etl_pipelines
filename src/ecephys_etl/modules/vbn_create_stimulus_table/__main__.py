@@ -6,6 +6,11 @@ from ecephys_etl.modules.vbn_create_stimulus_table.schemas import (
     VbnCreateStimulusTableOutputSchema
 )
 from ecephys_etl.data_extractors.sync_dataset import Dataset
+from ecephys_etl.data_extractors.stim_file import (
+    CamStimOnePickleStimFile,
+    BehaviorPickleFile,
+    ReplayPickleFile
+)
 from ecephys_etl.modules.vbn_create_stimulus_table.create_stim_table import (
     create_vbn_stimulus_table
 )
@@ -19,15 +24,20 @@ class VbnCreateStimulusTable(argschema.ArgSchemaParser):
         self.logger.name = type(self).__name__
         output_path = self.args["output_stimulus_table_path"]
         sync_data = Dataset(self.args["sync_h5_path"])
-        behavior_data = pd.read_pickle(self.args["behavior_pkl_path"])
-        mapping_data = pd.read_pickle(self.args["mapping_pkl_path"])
-        replay_data = pd.read_pickle(self.args["replay_pkl_path"])
+
+        behavior_pkl_path = self.args["behavior_pkl_path"]
+        behavior_data = BehaviorPickleFile.factory(behavior_pkl_path)
+
+        mapping_pkl_path = self.args["mapping_pkl_path"]
+        mapping_data = CamStimOnePickleStimFile.factory(mapping_pkl_path)
+
+        replay_data = ReplayPickleFile(self.args["replay_pkl_path"])
 
         stim_table: pd.DataFrame = create_vbn_stimulus_table(
             sync_data=sync_data,
-            behavior_data=behavior_data,
-            mapping_data=mapping_data,
-            replay_data=replay_data
+            behavior_pkl=behavior_data,
+            mapping_pkl=mapping_data,
+            replay_pkl=replay_data
         )
         stim_table.to_csv(path_or_buf=output_path, index=False)
 
