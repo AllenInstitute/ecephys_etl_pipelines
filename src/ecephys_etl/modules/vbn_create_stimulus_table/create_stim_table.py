@@ -6,7 +6,11 @@ import numpy as np
 import pandas as pd
 
 from ecephys_etl.data_extractors.sync_dataset import Dataset
-from ecephys_etl.data_extractors.stim_file import CamStimOnePickleStimFile
+from ecephys_etl.data_extractors.stim_file import (
+    CamStimOnePickleStimFile,
+    BehaviorPickleFile,
+    ReplayPickleFile
+)
 from ecephys_etl.modules.vcn_create_stimulus_table.ephys_pre_spikes import (
     build_stimuluswise_table,
     create_stim_table,
@@ -103,7 +107,7 @@ def get_stim_starts_and_ends(
 
     if stim_line == fallback_line:
         logging.warning(
-            f"Could not find 'stim_runing' nor 'sweep' line labels in "
+            f"Could not find 'stim_running' nor 'sweep' line labels in "
             f"sync dataset ({sync_dataset.dfile.filename}). Defaulting to "
             f"using fallback line label index ({fallback_line}) which "
             f"is not guaranteed to be correct!"
@@ -158,9 +162,17 @@ def get_frame_offsets(
         epoch_frame_counts.append(len(epoch_frames))
         epoch_start_frames.append(epoch_frames[0])
 
-    if len(epoch_frame_counts) > len(frame_count_arr):
+    if len(epoch_frame_counts) == len(frame_count_arr):
+        if not np.allclose(frame_count_arr, epoch_frame_counts):
+            logging.warning(
+                f"Number of frames derived from sync file "
+                f"({epoch_frame_counts})for each epoch not matching up with "
+                f"frame counts derived from pkl files ({frame_count_arr})!"
+            )
+        start_frames = epoch_start_frames
+    elif len(epoch_frame_counts) > len(frame_count_arr):
         logging.warning(
-            f"Number of stim presentations obtains from sync "
+            f"Number of stim presentations obtained from sync "
             f"({len(epoch_frame_counts)}) higher than number expected "
             f"({len(frame_count_arr)}). Inferring start frames."
         )
@@ -189,7 +201,11 @@ def get_frame_offsets(
                     f"Could not find matching sync frames for stim: {stim_idx}"
                 )
     else:
-        start_frames = epoch_start_frames
+        raise RuntimeError(
+            f"Do not know how to handle more pkl frame count entries "
+            f"({frame_count_arr}) than sync derived epoch frame count "
+            f"entries ({epoch_frame_counts})!"
+        )
 
     return start_frames
 
@@ -231,7 +247,7 @@ def determine_behavior_stimulus_properties(
     is_change = np.zeros(len(stim_df), dtype=bool)
     rewarded = np.zeros(len(stim_df), dtype=bool)
     flashes_since_change = np.zeros(len(stim_df), dtype=int)
-    current_image = stim_df.iloc[0]['stimulus_name']
+    current_image = None
     for index, row in stim_df.iterrows():
         if (row['image_name'] == 'omitted') or (row['omitted']):
             # An omitted stimulus shouldn't increment flashes_since_change
@@ -257,23 +273,21 @@ def determine_behavior_stimulus_properties(
 
 
 def generate_behavior_stim_table(
-    pkl_data: dict,
+    behavior_pkl: BehaviorPickleFile,
     sync_dataset: Dataset,
     frame_offset: int = 0,
     block_offset: int = 0
 ) -> pd.DataFrame:
 
-    pkl_behavior = pkl_data['items']['behavior']
-    image_set = pkl_behavior['params']['stimulus']['params']['image_set']
-    image_set = image_set.split('/')[-1].split('.')[0]
-    num_frames = pkl_behavior['intervalsms'].size + 1
-    reward_frames = pkl_behavior['rewards'][0]['reward_times'][:, 1]
+    image_set = behavior_pkl.image_set
+    num_frames = behavior_pkl.num_frames
+    reward_frames = behavior_pkl.reward_frames
 
     frame_timestamps = get_vsyncs(sync_dataset)
     reward_times = frame_timestamps[reward_frames.astype(int)]
     epoch_timestamps = frame_timestamps[frame_offset:frame_offset + num_frames]
 
-    stim_df = get_stimulus_presentations(pkl_data, epoch_timestamps)
+    stim_df = get_stimulus_presentations(behavior_pkl.data, epoch_timestamps)
     stim_df['stimulus_block'] = block_offset
     stim_df['stimulus_name'] = image_set
 
@@ -305,11 +319,10 @@ def generate_behavior_stim_table(
 
 
 def check_behavior_and_replay_pkl_match(
-    replay_pkl_data: dict,
+    replay_pkl: ReplayPickleFile,
     behavior_stim_table: pd.DataFrame
 ):
-    ims = replay_pkl_data['stimuli'][0]['sweep_params']['ReplaceImage'][0]
-    im_names = np.unique([img for img in ims if img is not None])
+    ims = replay_pkl.image_presentations
 
     # Check that replay pkl matches behavior
     im_ons = []
@@ -327,8 +340,14 @@ def check_behavior_and_replay_pkl_match(
 
     inter_flash_interval = np.diff(im_ons)
     putative_omitted = np.where(inter_flash_interval > 70)[0]
+
+    # Must specify dtype=object otherwise numpy will try to over-optimize
+    # by using a length limited character type (e.g. <U1, <U2, etc...)
+    # This causes problems when trying to insert "omitted" as it will may be
+    # accidentally truncated to "o", "om", etc...
+    im_names_arr = np.array(im_names, dtype=object)
     im_names_with_omitted = np.insert(
-        im_names, putative_omitted + 1, 'omitted'
+        im_names_arr, putative_omitted + 1, 'omitted'
     )
 
     # Handle omitted flash edge cases ###
@@ -349,24 +368,24 @@ def check_behavior_and_replay_pkl_match(
         )
 
     # Verify that the image list for replay is identical to behavior
+    assert len(behavior_stim_table['image_name']) == len(im_names_with_omitted)
     assert all(behavior_stim_table['image_name'] == im_names_with_omitted)
 
 
 def generate_replay_stim_table(
-    pkl_data: dict,
+    replay_pkl: ReplayPickleFile,
     sync_dataset: Dataset,
     behavior_stim_table: pd.DataFrame,
     block_offset: int = 3,
     frame_offset: int = 0
 ) -> pd.DataFrame:
 
-    num_frames = pkl_data['intervalsms'].size + 1
-
+    num_frames = replay_pkl.num_frames
     frame_timestamps = get_vsyncs(sync_dataset)
     frame_timestamps = frame_timestamps[frame_offset:frame_offset + num_frames]
 
     check_behavior_and_replay_pkl_match(
-        replay_pkl_data=pkl_data, behavior_stim_table=behavior_stim_table
+        replay_pkl=replay_pkl, behavior_stim_table=behavior_stim_table
     )
 
     # If replay pkl data and behavior pkl data match, use the existing
@@ -385,25 +404,23 @@ def generate_replay_stim_table(
 
 
 def generate_mapping_stim_table(
-    mapping_pkl_data: dict,
+    mapping_pkl: CamStimOnePickleStimFile,
     sync_dataset: Dataset,
     block_offset: int = 1,
     frame_offset: int = 0
 ) -> pd.DataFrame:
 
-    stim_file = CamStimOnePickleStimFile(data=mapping_pkl_data)
-
     def seconds_to_frames(
         seconds: List[Union[int, float]]
     ) -> List[Union[int, float]]:
-        offset_times = np.array(seconds) + stim_file.pre_blank_sec
-        return offset_times * stim_file.frames_per_second
+        offset_times = np.array(seconds) + mapping_pkl.pre_blank_sec
+        return offset_times * mapping_pkl.frames_per_second
 
     stim_tabler = partial(
         build_stimuluswise_table, seconds_to_frames=seconds_to_frames
     )
     stim_df = create_stim_table(
-        stim_file.stimuli, stim_tabler, make_spontaneous_activity_tables
+        mapping_pkl.stimuli, stim_tabler, make_spontaneous_activity_tables
     )
 
     frame_timestamps = get_vsyncs(sync_dataset)
@@ -430,30 +447,25 @@ def generate_mapping_stim_table(
 
 def create_vbn_stimulus_table(
     sync_dataset: Dataset,
-    behavior_data: dict,
-    mapping_data: dict,
-    replay_data: dict
+    behavior_pkl: BehaviorPickleFile,
+    mapping_pkl: CamStimOnePickleStimFile,
+    replay_pkl: ReplayPickleFile
 ) -> pd.DataFrame:
 
-    frame_counts = []
-    for data in [behavior_data, mapping_data, replay_data]:
-        if "intervalsms" in data:
-            total_frames = len(data["intervalsms"]) + 1
-        else:
-            total_frames = len(data["items"]["behavior"]["intervalsms"]) + 1
-        frame_counts.append(total_frames)
-
+    frame_counts = [
+        pkl.num_frames for pkl in (behavior_pkl, mapping_pkl, replay_pkl)
+    ]
     frame_offsets = get_frame_offsets(sync_dataset, frame_counts)
 
     # Generate stim tables for the 3 different stimulus pkl types
     behavior_df = generate_behavior_stim_table(
-        behavior_data, sync_dataset, frame_offset=frame_offsets[0]
+        behavior_pkl, sync_dataset, frame_offset=frame_offsets[0]
     )
     mapping_df = generate_mapping_stim_table(
-        mapping_data, sync_dataset, frame_offset=frame_offsets[1]
+        mapping_pkl, sync_dataset, frame_offset=frame_offsets[1]
     )
     replay_df = generate_replay_stim_table(
-        replay_data, sync_dataset, behavior_df,
+        replay_pkl, sync_dataset, behavior_df,
         frame_offset=frame_offsets[2]
     )
 
