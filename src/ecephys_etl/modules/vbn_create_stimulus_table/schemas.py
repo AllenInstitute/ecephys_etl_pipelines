@@ -1,5 +1,5 @@
 from argschema import ArgSchema
-from argschema.fields import (LogLevel, InputFile, OutputFile)
+from argschema.fields import (LogLevel, InputFile, Nested, OutputFile)
 
 from ecephys_etl.schemas.fields import OutputFileExists
 
@@ -53,7 +53,7 @@ class VbnCreateStimulusTableInputSchema(ArgSchema):
 
 
 class VbnCreateStimulusTableOutputSchema(ArgSchema):
-    input_parameters = argschema.fields.Nested(
+    input_parameters = Nested(
         VbnCreateStimulusTableInputSchema,
         required=True,
         description=(

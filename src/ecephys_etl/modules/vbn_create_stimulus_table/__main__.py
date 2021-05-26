@@ -31,10 +31,10 @@ class VbnCreateStimulusTable(argschema.ArgSchemaParser):
         mapping_pkl_path = self.args["mapping_pkl_path"]
         mapping_data = CamStimOnePickleStimFile.factory(mapping_pkl_path)
 
-        replay_data = ReplayPickleFile(self.args["replay_pkl_path"])
+        replay_data = ReplayPickleFile.factory(self.args["replay_pkl_path"])
 
         stim_table: pd.DataFrame = create_vbn_stimulus_table(
-            sync_data=sync_data,
+            sync_dataset=sync_data,
             behavior_pkl=behavior_data,
             mapping_pkl=mapping_data,
             replay_pkl=replay_data
