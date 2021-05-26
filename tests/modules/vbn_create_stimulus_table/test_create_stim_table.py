@@ -471,12 +471,128 @@ def test_determine_behavior_stimulus_properties(
 
 
 @pytest.fixture()
+def mock_behavior_pkl_fixture(request):
+
+    mock_beh_pkl = create_autospec(BehaviorPickleFile, instance=True)
+    mock_beh_pkl.image_set = request.param.get("image_set", "test_img_set_1")
+    mock_beh_pkl.num_frames = request.param.get("num_frames", 10)
+    mock_beh_pkl.reward_frames = request.param.get("reward_frames", [42])
+
+    return mock_beh_pkl
+
+
+@pytest.mark.parametrize(
+    "mock_behavior_pkl_fixture, mock_sync_dataset_fixture,"
+    "stim_presentations_df, stim_properties, frame_offset,"
+    "block_offset, expected",
+    [
+        (
+            # mock_behavior_pkl_fixture
+            {
+                "image_set": "test_image_set",
+                "num_frames": 10,
+                "reward_frames": np.array([4])
+            },
+            # mock_sync_dataset_fixture
+            {
+                "line_labels": ["vsync_stim"],
+                "get_falling_edges": {
+                    "vsync_stim": np.array(
+                        [1., 2., 4., 6., 8., 10., 12., 14., 16., 17.]
+                    ),
+                }
+            },
+            # stim_presentations_df
+            pd.DataFrame({
+                "stimulus_presentations_id": [0, 1, 2, 3, 4],
+                "duration": [1., 2., 2., 2., 1.],
+                "end_frame": [1, 3, 5, 7, 9],
+                "image_name": ["a", "a", "b", "b", "b"],
+                "index": [0, 1, 2, 3, 4],
+                "omitted": [False, False, False, False, False],
+                "orientation": [np.nan] * 5,
+                "start_frame": [0, 2, 4, 6, 8],
+                "start_time": [1., 4., 8., 12., 16.],
+                "stop_time": [2., 5., 10., 14., 17.]
+            }).set_index("stimulus_presentations_id"),
+            # stim_properties
+            {
+                "flashes_since_change": [0, 1, 0, 1, 2],
+                "is_change": [False, False, True, False, False],
+                "rewarded": [False, False, True, False, False]
+            },
+            # frame_offset
+            0,
+            # block_offset
+            0,
+            # expected
+            pd.DataFrame({
+                "stimulus_presentations_id": [0, 1, 2, 3, 4],
+                "duration": [1., 2., 2., 2., 1.],
+                "end_frame": [1, 3, 5, 7, 9],
+                "image_name": ["a", "a", "b", "b", "b"],
+                "omitted": [False, False, False, False, False],
+                "orientation": [np.nan] * 5,
+                "start_frame": [0, 2, 4, 6, 8],
+                "start_time": [1., 4., 8., 12., 16.],
+                "stop_time": [2., 5., 10., 14., 17.],
+                "stimulus_block": [0] * 5,
+                "stimulus_name": ["test_image_set"] * 5,
+                "is_change": [False, False, True, False, False],
+                "rewarded": [False, False, True, False, False],
+                "flashes_since_change": [0, 1, 0, 1, 2],
+                "active": [True] * 5,
+            }).set_index("stimulus_presentations_id")
+        )
+    ],
+    indirect=["mock_behavior_pkl_fixture", "mock_sync_dataset_fixture"]
+)
+def test_generate_behavior_stim_table(
+    monkeypatch, mock_behavior_pkl_fixture, mock_sync_dataset_fixture,
+    stim_presentations_df, stim_properties, frame_offset, block_offset,
+    expected
+):
+    # Set up mocks that need to be patched in
+    mock_get_stimulus_presentations = create_autospec(
+        create_stim_table.get_stimulus_presentations
+    )
+    mock_get_stimulus_presentations.return_value = stim_presentations_df
+
+    mock_determine_behavior_stimulus_properties = create_autospec(
+        create_stim_table.determine_behavior_stimulus_properties
+    )
+    mock_determine_behavior_stimulus_properties.return_value = stim_properties
+
+    with monkeypatch.context() as m:
+        m.setattr(
+            "ecephys_etl.modules.vbn_create_stimulus_table"
+            ".create_stim_table.get_stimulus_presentations",
+            mock_get_stimulus_presentations
+        )
+        m.setattr(
+            "ecephys_etl.modules.vbn_create_stimulus_table"
+            ".create_stim_table.determine_behavior_stimulus_properties",
+            mock_determine_behavior_stimulus_properties
+        )
+
+        obt = create_stim_table.generate_behavior_stim_table(
+            mock_behavior_pkl_fixture,
+            mock_sync_dataset_fixture,
+            frame_offset,
+            block_offset
+        )
+
+    pd.testing.assert_frame_equal(expected, obt)
+
+
+@pytest.fixture()
 def mock_replay_pkl_fixture(request):
 
     mock_replay_pkl = create_autospec(ReplayPickleFile, instance=True)
     mock_replay_pkl.image_presentations = request.param.get(
         "image_presentations", ["a", "a"] + [None] * 71 + ["b", "b", "b"]
     )
+    mock_replay_pkl.num_frames = request.param.get("num_frames", 10)
     return mock_replay_pkl
 
 
@@ -534,3 +650,445 @@ def test_check_behavior_and_replay_pkl_match(
         create_stim_table.check_behavior_and_replay_pkl_match(
             mock_replay_pkl_fixture, behavior_stim_table
         )
+
+
+@pytest.mark.parametrize(
+    "mock_replay_pkl_fixture, mock_sync_dataset_fixture,"
+    "behavior_stim_table, block_offset, frame_offset, expected",
+    [
+        (
+            # mock_replay_pkl_fixture
+            {
+                "image_set": "test_image_set",
+                "num_frames": 10,
+                "reward_frames": np.array([4])
+            },
+            # mock_sync_dataset_fixture
+            {
+                "line_labels": ["vsync_stim"],
+                "get_falling_edges": {
+                    "vsync_stim": np.array(
+                        # Behavior frame times
+                        [1., 2., 4., 6., 8., 10., 12., 14., 16., 17.]
+                        # Mapping frame times
+                        + [18., 19., 20., 21., 22., 23., 24., 25., 26., 27.]
+                        # Replay frame times
+                        + [31., 32., 34., 35., 38., 40., 43., 44., 46., 47.]
+                    ),
+                }
+            },
+            # behavior_stim_table
+            pd.DataFrame({
+                "stimulus_presentations_id": [0, 1, 2, 3, 4],
+                "duration": [1., 2., 2., 2., 1.],
+                "end_frame": [1, 3, 5, 7, 9],
+                "image_name": ["a", "a", "b", "b", "b"],
+                "omitted": [False, False, False, False, False],
+                "orientation": [np.nan] * 5,
+                "start_frame": [0, 2, 4, 6, 8],
+                "start_time": [1., 4., 8., 12., 16.],
+                "stop_time": [2., 5., 10., 14., 17.],
+                "stimulus_block": [0] * 5,
+                "stimulus_name": ["test_image_set"] * 5,
+                "is_change": [False, False, True, False, False],
+                "rewarded": [False, False, True, False, False],
+                "flashes_since_change": [0, 1, 0, 1, 2],
+                "active": [True] * 5,
+            }).set_index("stimulus_presentations_id"),
+            # block_offset
+            4,
+            # frame_offset
+            20,
+            # expected
+            pd.DataFrame({
+                "stimulus_presentations_id": [0, 1, 2, 3, 4],
+                "duration": [1., 1., 2., 1., 1.],
+                "end_frame": [21, 23, 25, 27, 29],
+                "image_name": ["a", "a", "b", "b", "b"],
+                "omitted": [False, False, False, False, False],
+                "orientation": [np.nan] * 5,
+                "start_frame": [20, 22, 24, 26, 28],
+                "start_time": [31., 34., 38., 43., 46.],
+                "stop_time": [32., 35., 40., 44., 47.],
+                "stimulus_block": [4] * 5,
+                "stimulus_name": ["test_image_set"] * 5,
+                "is_change": [False, False, True, False, False],
+                "rewarded": [False, False, True, False, False],
+                "flashes_since_change": [0, 1, 0, 1, 2],
+                "active": [False] * 5,
+            }).set_index("stimulus_presentations_id"),
+        ),
+    ],
+    indirect=["mock_replay_pkl_fixture", "mock_sync_dataset_fixture"]
+)
+def test_generate_replay_stim_table(
+    monkeypatch, mock_replay_pkl_fixture, mock_sync_dataset_fixture,
+    behavior_stim_table, block_offset, frame_offset, expected
+):
+
+    # Set up mocks that need to be patched in
+    mock_check_behavior_and_replay_pkl_match = create_autospec(
+        create_stim_table.check_behavior_and_replay_pkl_match
+    )
+
+    with monkeypatch.context() as m:
+        m.setattr(
+            "ecephys_etl.modules.vbn_create_stimulus_table"
+            ".create_stim_table.check_behavior_and_replay_pkl_match",
+            mock_check_behavior_and_replay_pkl_match
+        )
+
+        obt = create_stim_table.generate_replay_stim_table(
+            mock_replay_pkl_fixture,
+            mock_sync_dataset_fixture,
+            behavior_stim_table,
+            block_offset,
+            frame_offset
+        )
+
+    mock_check_behavior_and_replay_pkl_match.assert_called_once_with(
+        replay_pkl=mock_replay_pkl_fixture,
+        behavior_stim_table=behavior_stim_table
+    )
+
+    pd.testing.assert_frame_equal(expected, obt)
+
+
+@pytest.fixture()
+def mock_mapping_pkl_fixture(request):
+
+    mock_mapping_pkl = create_autospec(CamStimOnePickleStimFile, instance=True)
+    mock_mapping_pkl.pre_blank_sec = request.param.get("pre_blank_sec", 5)
+    mock_mapping_pkl.frames_per_second = request.param.get(
+        "frames_per_second", 30)
+    mock_mapping_pkl.num_frames = request.param.get("num_frames", 10)
+    mock_mapping_pkl.stimuli = request.param.get("stimuli", [{}])
+    return mock_mapping_pkl
+
+
+@pytest.mark.parametrize(
+    "mock_mapping_pkl_fixture, mock_sync_dataset_fixture,"
+    "mock_create_stim_table_return, frame_offset, expected",
+    [
+        (
+            # mock_mapping_pkl_fixture (just use defaults)
+            {},
+            # mock_sync_dataset_fixture
+            {
+                "line_labels": ["vsync_stim"],
+                "get_falling_edges": {
+                    "vsync_stim": np.array(
+                        # Behavior frame times
+                        [1., 2., 4., 6., 8., 10., 12., 14., 16., 17.]
+                        # Mapping frame times
+                        + [18., 19., 20., 21., 22., 23., 24., 25., 26., 27.]
+                        # Replay frame times
+                        + [31., 32., 34., 35., 38., 40., 43., 44., 46., 47.]
+                    ),
+                }
+            },
+            # mock_create_stim_table_return
+            pd.DataFrame({
+                "Start": [0.0, 4.0, 5.0, 7.0, 8.0],
+                "End": [4.0, 5.0, 7.0, 8.0, 9.0],
+                "stimulus_name": [np.nan, "gabor", "gabor", "flash", "flash"],
+                "stimulus_block": [np.nan, 0.0, 0.0, 1.0, 1.0],
+                "TF": [np.nan, 4.0, 4.0, np.nan, np.nan],
+                "SF": [np.nan, 0.08, 0.08, np.nan, np.nan],
+                "Ori": [np.nan, 45.0, 90.0, np.nan, np.nan],
+                "Contrast": [np.nan, 0.8, 0.8, 0.8, 0.8],
+                "Pos_x": [np.nan, -30.0, 20.0, np.nan, np.nan],
+                "Pos_y": [np.nan, 0.0, 40.0, np.nan, np.nan],
+                "stimulus_index": [np.nan, 0.0, 0.0, 1.0, 1.0],
+                "Color": [np.nan, np.nan, np.nan, -1.0, 1.0]
+            }),
+            # frame_offset
+            10,
+            # expected
+            pd.DataFrame({
+                "start_frame": [10, 14, 15, 17, 18],
+                "end_frame": [14, 15, 17, 18, 19],
+                "stimulus_name": ["spontaneous", "gabor", "gabor", "flash", "flash"],  # noqa: E501
+                "stimulus_block": [2, 1, 1, 3, 3],
+                "temporal_frequency": [np.nan, 4.0, 4.0, np.nan, np.nan],
+                "spatial_frequency": [np.nan, 0.08, 0.08, np.nan, np.nan],
+                "orientation": [np.nan, 45.0, 90.0, np.nan, np.nan],
+                "contrast": [np.nan, 0.8, 0.8, 0.8, 0.8],
+                "position_x": [np.nan, -30.0, 20.0, np.nan, np.nan],
+                "position_y": [np.nan, 0.0, 40.0, np.nan, np.nan],
+                "stimulus_index": [np.nan, 0, 0, 1, 1],
+                "color": [np.nan, np.nan, np.nan, -1.0, 1.0],
+                "start_time": [18., 22., 23., 25., 26.],
+                "stop_time": [22., 23., 25., 26., 27.],
+                "duration": [4., 1., 2., 1., 1.],
+                "active": [False, False, False, False, False],
+            })
+        )
+    ],
+    indirect=["mock_mapping_pkl_fixture", "mock_sync_dataset_fixture"]
+)
+def test_generate_mapping_stim_table(
+    monkeypatch, mock_mapping_pkl_fixture, mock_sync_dataset_fixture,
+    mock_create_stim_table_return, frame_offset, expected
+):
+
+    # Set up mocks that need to be patched in
+    mock_create_stim_table = create_autospec(
+        create_stim_table.create_stim_table
+    )
+    mock_create_stim_table.return_value = mock_create_stim_table_return
+
+    with monkeypatch.context() as m:
+        m.setattr(
+            "ecephys_etl.modules.vbn_create_stimulus_table"
+            ".create_stim_table.create_stim_table",
+            mock_create_stim_table
+        )
+
+        obt = create_stim_table.generate_mapping_stim_table(
+            mock_mapping_pkl_fixture,
+            mock_sync_dataset_fixture,
+            frame_offset
+        )
+
+    pd.testing.assert_frame_equal(expected, obt)
+
+
+@pytest.mark.parametrize(
+    "mock_sync_dataset_fixture, mock_behavior_pkl_fixture, "
+    "mock_mapping_pkl_fixture, mock_replay_pkl_fixture, "
+    "frame_offsets, behavior_stim_table, mapping_stim_table, "
+    "replay_stim_table, expected",
+    [
+        (
+            # mock_sync_dataset_fixture (can just use default)
+            {},
+            # mock_behavior_pkl_fixture
+            {"num_frames": 10},
+            # mock_mapping_pkl_fixture
+            {"num_frames": 10},
+            # mock_replay_pkl_fixture
+            {"num_frames": 10},
+            # frame_offsets
+            [10, 10, 10],
+            # behavior_stim_table
+            pd.DataFrame({
+                "stimulus_presentations_id": [0, 1, 2, 3, 4],
+                "duration": [1., 2., 2., 2., 1.],
+                "end_frame": [1, 3, 5, 7, 9],
+                "image_name": ["a", "a", "b", "b", "b"],
+                "omitted": [False, False, False, False, False],
+                "orientation": [np.nan] * 5,
+                "start_frame": [0, 2, 4, 6, 8],
+                "start_time": [1., 4., 8., 12., 16.],
+                "stop_time": [2., 5., 10., 14., 17.],
+                "stimulus_block": [0] * 5,
+                "stimulus_name": ["test_image_set"] * 5,
+                "is_change": [False, False, True, False, False],
+                "rewarded": [False, False, True, False, False],
+                "flashes_since_change": [0, 1, 0, 1, 2],
+                "active": [True] * 5,
+            }).set_index("stimulus_presentations_id"),
+            # mapping_stim_table
+            pd.DataFrame({
+                "start_frame": [10, 14, 15, 17, 18],
+                "end_frame": [14, 15, 17, 18, 19],
+                "stimulus_name": ["spontaneous", "gabor", "gabor", "flash", "flash"],  # noqa: E501
+                "stimulus_block": [2, 1, 1, 3, 3],
+                "temporal_frequency": [np.nan, 4.0, 4.0, np.nan, np.nan],
+                "spatial_frequency": [np.nan, 0.08, 0.08, np.nan, np.nan],
+                "orientation": [np.nan, 45.0, 90.0, np.nan, np.nan],
+                "contrast": [np.nan, 0.8, 0.8, 0.8, 0.8],
+                "position_x": [np.nan, -30.0, 20.0, np.nan, np.nan],
+                "position_y": [np.nan, 0.0, 40.0, np.nan, np.nan],
+                "stimulus_index": [np.nan, 0, 0, 1, 1],
+                "color": [np.nan, np.nan, np.nan, -1.0, 1.0],
+                "start_time": [18., 22., 23., 25., 26.],
+                "stop_time": [22., 23., 25., 26., 27.],
+                "duration": [4., 1., 2., 1., 1.],
+                "active": [False, False, False, False, False],
+            }),
+            # replay_stim_table
+            pd.DataFrame({
+                "stimulus_presentations_id": [0, 1, 2, 3, 4],
+                "duration": [1., 1., 2., 1., 1.],
+                "end_frame": [21, 23, 25, 27, 29],
+                "image_name": ["a", "a", "b", "b", "b"],
+                "omitted": [False, False, False, False, False],
+                "orientation": [np.nan] * 5,
+                "start_frame": [20, 22, 24, 26, 28],
+                "start_time": [31., 34., 38., 43., 46.],
+                "stop_time": [32., 35., 40., 44., 47.],
+                "stimulus_block": [4] * 5,
+                "stimulus_name": ["test_image_set"] * 5,
+                "is_change": [False, False, True, False, False],
+                "rewarded": [False, False, True, False, False],
+                "flashes_since_change": [0, 1, 0, 1, 2],
+                "active": [False] * 5,
+            }).set_index("stimulus_presentations_id"),
+            # expected
+            pd.DataFrame({
+                "stimulus_block": [0] * 5 + [2, 1, 1, 3, 3] + [4] * 5,
+                "active": [True] * 5 + [False] * 10,
+                "stimulus_name": (
+                    ["test_image_set"] * 5
+                    + ["spontaneous", "gabor", "gabor", "flash", "flash"]
+                    + ["test_image_set"] * 5
+                ),
+                "start_time": [
+                    1., 4., 8., 12., 16.,
+                    18., 22., 23., 25., 26.,
+                    31., 34., 38., 43., 46.
+                ],
+                "stop_time": [
+                    2., 5., 10., 14., 17.,
+                    22., 23., 25., 26., 27.,
+                    32., 35., 40., 44., 47.
+                ],
+                "duration": [
+                    1., 2., 2., 2., 1.,
+                    4., 1., 2., 1., 1.,
+                    1., 1., 2., 1., 1.
+                ],
+                "start_frame": [
+                    0, 2, 4, 6, 8,
+                    10, 14, 15, 17, 18,
+                    20, 22, 24, 26, 28
+                ],
+                "end_frame": [
+                    1, 3, 5, 7, 9,
+                    14, 15, 17, 18, 19,
+                    21, 23, 25, 27, 29
+                ],
+                "flashes_since_change": [
+                    0, 1, 0, 1, 2,
+                    np.nan, np.nan, np.nan, np.nan, np.nan,
+                    0, 1, 0, 1, 2
+                ],
+                "image_name": [
+                    "a", "a", "b", "b", "b",
+                    np.nan, np.nan, np.nan, np.nan, np.nan,
+                    "a", "a", "b", "b", "b",
+                ],
+                "is_change": [
+                    False, False, True, False, False,
+                    np.nan, np.nan, np.nan, np.nan, np.nan,
+                    False, False, True, False, False
+                ],
+                "omitted": [
+                    False, False, False, False, False,
+                    np.nan, np.nan, np.nan, np.nan, np.nan,
+                    False, False, False, False, False,
+                ],
+                "orientation": (
+                    [np.nan] * 5
+                    + [np.nan, 45.0, 90.0, np.nan, np.nan]
+                    + [np.nan] * 5
+                ),
+                "rewarded": [
+                    False, False, True, False, False,
+                    np.nan, np.nan, np.nan, np.nan, np.nan,
+                    False, False, True, False, False,
+                ],
+                "temporal_frequency": (
+                    [np.nan] * 5
+                    + [np.nan, 4.0, 4.0, np.nan, np.nan]
+                    + [np.nan] * 5
+                ),
+                "spatial_frequency": (
+                    [np.nan] * 5
+                    + [np.nan, 0.08, 0.08, np.nan, np.nan]
+                    + [np.nan] * 5
+                ),
+                "contrast": (
+                    [np.nan] * 5
+                    + [np.nan, 0.8, 0.8, 0.8, 0.8]
+                    + [np.nan] * 5
+                ),
+                "position_x": (
+                    [np.nan] * 5
+                    + [np.nan, -30.0, 20.0, np.nan, np.nan]
+                    + [np.nan] * 5
+                ),
+                "position_y": (
+                    [np.nan] * 5
+                    + [np.nan, 0.0, 40.0, np.nan, np.nan]
+                    + [np.nan] * 5
+                ),
+                "stimulus_index": (
+                    [np.nan] * 5
+                    + [np.nan, 0, 0, 1, 1]
+                    + [np.nan] * 5
+                ),
+                "color": (
+                    [np.nan] * 5
+                    + [np.nan, np.nan, np.nan, -1.0, 1.0]
+                    + [np.nan] * 5
+                ),
+            }),
+        )
+    ],
+    indirect=[
+        "mock_sync_dataset_fixture",
+        "mock_behavior_pkl_fixture",
+        "mock_mapping_pkl_fixture",
+        "mock_replay_pkl_fixture"
+    ]
+)
+def test_create_vbn_stimulus_table(
+    monkeypatch, mock_sync_dataset_fixture, mock_behavior_pkl_fixture,
+    mock_mapping_pkl_fixture, mock_replay_pkl_fixture, frame_offsets,
+    behavior_stim_table, mapping_stim_table, replay_stim_table, expected
+):
+
+    # Set up mocks that need to be patched in
+    mock_get_frame_offsets = create_autospec(
+        create_stim_table.get_frame_offsets
+    )
+    mock_get_frame_offsets.return_value = frame_offsets
+
+    mock_generate_behavior_stim_table = create_autospec(
+        create_stim_table.generate_behavior_stim_table
+    )
+    mock_generate_behavior_stim_table.return_value = behavior_stim_table
+
+    mock_generate_mapping_stim_table = create_autospec(
+        create_stim_table.generate_mapping_stim_table
+    )
+    mock_generate_mapping_stim_table.return_value = mapping_stim_table
+
+    mock_generate_replay_stim_table = create_autospec(
+        create_stim_table.generate_replay_stim_table
+    )
+    mock_generate_replay_stim_table.return_value = replay_stim_table
+
+    with monkeypatch.context() as m:
+        m.setattr(
+            "ecephys_etl.modules.vbn_create_stimulus_table"
+            ".create_stim_table.get_frame_offsets",
+            mock_get_frame_offsets
+        )
+        m.setattr(
+            "ecephys_etl.modules.vbn_create_stimulus_table"
+            ".create_stim_table.generate_behavior_stim_table",
+            mock_generate_behavior_stim_table
+        )
+        m.setattr(
+            "ecephys_etl.modules.vbn_create_stimulus_table"
+            ".create_stim_table.generate_mapping_stim_table",
+            mock_generate_mapping_stim_table
+        )
+        m.setattr(
+            "ecephys_etl.modules.vbn_create_stimulus_table"
+            ".create_stim_table.generate_replay_stim_table",
+            mock_generate_replay_stim_table
+        )
+
+        obt = create_stim_table.create_vbn_stimulus_table(
+            mock_sync_dataset_fixture,
+            mock_behavior_pkl_fixture,
+            mock_mapping_pkl_fixture,
+            mock_replay_pkl_fixture
+        )
+
+    pd.testing.assert_frame_equal(expected, obt)

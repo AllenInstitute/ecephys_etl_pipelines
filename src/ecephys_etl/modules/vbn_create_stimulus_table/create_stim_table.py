@@ -312,10 +312,29 @@ def generate_behavior_stim_table(
     omitted_end_times = (
         epoch_timestamps[stim_df[stim_df['omitted']]['end_frame'].astype(int)]
     )
-    stim_df.loc[stim_df['omitted'], 'End'] = omitted_end_times
-    stim_df['common_name'] = 'behavior'
+    stim_df.loc[stim_df['omitted'], 'stop_time'] = omitted_end_times
 
-    return stim_df
+    # Drop index column
+    stim_df.drop(columns=["index"], inplace=True)
+
+    column_dtypes = {
+        "duration": float,
+        "end_frame": int,
+        "image_name": object,
+        "omitted": bool,
+        "orientation": float,
+        "start_frame": int,
+        "start_time": float,
+        "stop_time": float,
+        "stimulus_block": int,
+        "stimulus_name": object,
+        "is_change": bool,
+        "rewarded": bool,
+        "flashes_since_change": int,
+        "active": bool
+    }
+
+    return stim_df.astype(column_dtypes)
 
 
 def check_behavior_and_replay_pkl_match(
@@ -376,7 +395,7 @@ def generate_replay_stim_table(
     replay_pkl: ReplayPickleFile,
     sync_dataset: Dataset,
     behavior_stim_table: pd.DataFrame,
-    block_offset: int = 3,
+    block_offset: int = 4,
     frame_offset: int = 0
 ) -> pd.DataFrame:
 
@@ -393,20 +412,28 @@ def generate_replay_stim_table(
     stim_table = behavior_stim_table.copy(deep=True)
     stim_table['stimulus_block'] = block_offset
     stim_table['start_time'] = frame_timestamps[stim_table['start_frame']]
-    stop_times = frame_timestamps[stim_table['end_frame'].dropna().astype(int)]
-    stim_table.loc[:, 'stop_time'] = stop_times
+    stim_table['stop_time'] = frame_timestamps[stim_table['end_frame']]
+    stim_table['duration'] = stim_table['stop_time'] - stim_table['start_time']
     stim_table['start_frame'] = stim_table['start_frame'] + frame_offset
-    stim_table.loc[:, 'end_frame'] = stim_table['end_frame'] + frame_offset
+    stim_table['end_frame'] = stim_table['end_frame'] + frame_offset
     stim_table['active'] = False
-    stim_table['common_name'] = 'replay'
 
-    return stim_table
+    column_dtypes = {
+        "duration": float,
+        "end_frame": int,
+        "start_frame": int,
+        "start_time": float,
+        "stop_time": float,
+        "stimulus_block": int,
+        "active": bool
+    }
+
+    return stim_table.astype(column_dtypes)
 
 
 def generate_mapping_stim_table(
     mapping_pkl: CamStimOnePickleStimFile,
     sync_dataset: Dataset,
-    block_offset: int = 1,
     frame_offset: int = 0
 ) -> pd.DataFrame:
 
@@ -428,21 +455,59 @@ def generate_mapping_stim_table(
     stim_df = stim_df.rename(
         columns={
             "Start": "start_frame",
-            "End": "end_frame"
+            "End": "end_frame",
+            "TF": "temporal_frequency",
+            "SF": "spatial_frequency",
+            "Ori": "orientation",
+            "Contrast": "contrast",
+            "Pos_x": "position_x",
+            "Pos_y": "position_y",
+            "Color": "color"
         }
     )
 
-    start_frames = np.array(stim_df['start_frame']).astype(int) + frame_offset
-    stim_df['start_frame'] = start_frames
-    end_frames = np.array(stim_df['end_frame']).astype(int) + frame_offset
-    stim_df['end_frame'] = end_frames
+    # Fill in table row(s) for 'spontaneous' stimuli
+    # Characterized by NaN for "stimulus_name" and "stimulus_block"
+    spont_rows = (
+        stim_df["stimulus_name"].isnull() & stim_df["stimulus_block"].isnull()
+    )
+    stim_df.loc[spont_rows, "stimulus_name"] = 'spontaneous'
+    stim_df.loc[spont_rows, "stimulus_block"] = 2
+
+    # Update "stimulus_block" values for gabor and flash stimuli
+    # Gabor "stimulus_block" should take on value of 1
+    gabor_rows = stim_df["stimulus_name"].str.contains("gabor")
+    stim_df.loc[gabor_rows, "stimulus_block"] = 1
+    # Flash "stimulus_block" should take on value of 3
+    flash_rows = stim_df["stimulus_name"].str.contains("flash")
+    stim_df.loc[flash_rows, "stimulus_block"] = 3
+
+    stim_df['start_frame'] = stim_df['start_frame'].astype(int) + frame_offset
+    stim_df['end_frame'] = stim_df['end_frame'].astype(int) + frame_offset
     stim_df['start_time'] = frame_timestamps[stim_df['start_frame']]
     stim_df['stop_time'] = frame_timestamps[stim_df['end_frame']]
-    stim_df['stimulus_block'] = stim_df['stimulus_block'] + block_offset
+    stim_df['duration'] = stim_df['stop_time'] - stim_df['start_time']
     stim_df['active'] = False
-    stim_df['common_name'] = 'mapping'
 
-    return stim_df
+    column_dtypes = {
+        "duration": float,
+        "end_frame": int,
+        "orientation": float,
+        "start_frame": int,
+        "start_time": float,
+        "stop_time": float,
+        "stimulus_block": int,
+        "stimulus_name": object,
+        "active": bool,
+        "temporal_frequency": float,
+        "spatial_frequency": float,
+        "contrast": float,
+        "position_x": float,
+        "position_y": float,
+        "color": float
+    }
+
+    return stim_df.astype(column_dtypes)
 
 
 def create_vbn_stimulus_table(
@@ -481,9 +546,6 @@ def create_vbn_stimulus_table(
     behavior_df = behavior_df[key_col_order + other_col_order]
 
     full_stim_df = pd.concat([behavior_df, mapping_df, replay_df], sort=False)
-    stim_durations = full_stim_df['stop_time'] - full_stim_df['start_time']
-    full_stim_df.loc[:, 'duration'] = stim_durations
-    full_stim_df.loc[full_stim_df['stimulus_name'].isnull(), 'stimulus_name'] = 'spontaneous'  # noqa: E501
-    full_stim_df['presentation_index'] = np.arange(len(full_stim_df))
+    full_stim_df.reset_index(drop=True, inplace=True)
 
     return full_stim_df
