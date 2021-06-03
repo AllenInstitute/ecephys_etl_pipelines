@@ -135,6 +135,9 @@ def get_frame_offsets(
         List of expected frame counts (taken from behavior, mapping, and replay
         pkl files) for each stimuli category. The list of counts should be
         ordered by the actual display sequence of the stimuli categories.
+
+        WARNING: The order of frame counts should match the actual order of
+        presentations.
     tolerance : int
         Percent by which frame counts are allowed to deviate from,
         by default 0.
@@ -278,7 +281,58 @@ def generate_behavior_stim_table(
     frame_offset: int = 0,
     block_offset: int = 0
 ) -> pd.DataFrame:
+    """Generate a stimulus table for the behavior portion of a visual behavior
+    neuropixels session.
 
+    Parameters
+    ----------
+    behavior_pkl : BehaviorPickleFile
+        A BehaviorPickleFile object, that allows easier access to key
+        behavior pickle file data and metadata.
+    sync_dataset : Dataset
+        A sync Datset object that allows pythonic access of *.sync file data
+        containing global timing information for events and presented stimuli.
+    frame_offset : int, optional
+        Used to give correct 'start_frame' and 'end_frame' values when
+        combining with DataFrames from other portions of a VBN session
+        (e.g. behavior, mapping, replay), by default 0
+    block_offset : int, optional
+        Used to give correct 'stimulus_block' values when combining with
+        DataFrames from other portions of a VBN session
+        (e.g. behavior, mapping, replay), by default 0
+
+    Returns
+    -------
+    pd.DataFrame
+        A pandas DataFrame containing only presentations pertaining to the
+        visual behavior portion of a VBN session. Has the following columns:
+            stimulus_presentations_id (index): Unique identifier for a
+                stimulus presentation
+            duration: Duration (in seconds) of a stimulus presentation.
+            end_frame: The last frame that the stimulus was present on screen.
+            image_name: The name of the image.
+            omitted: Whether the presentation was omitted or not for the
+                specific presentation.
+            orientation: The orientation of the image.
+            start_frame: The first frame that the stimulus was present on
+                screen.
+            start_time: The time in seconds when stimulus first appeared on
+                screen.
+            stop_time: The last time in seconds that stimulus appeared on
+                screen.
+            stimulus_block: A full VBN session can be broken into several
+                blocks, this column denotes the block index.
+            stimulus_name: The name of the stimulus set which images were
+                drawn from.
+            is_change: Whether a presentation was a 'changed' image (True)
+                or a repeated presentation of an image (False).
+            rewarded: Whether subject was rewarded during presentation.
+            flashes_since_change: The number of image presentations since
+                a different image was presented.
+            active: Whether the stimulus presentation was during a portion of
+                the session where the subject was actively performing a
+                behavior task.
+    """
     image_set = behavior_pkl.image_set
     num_frames = behavior_pkl.num_frames
     reward_frames = behavior_pkl.reward_frames
@@ -341,6 +395,18 @@ def check_behavior_and_replay_pkl_match(
     replay_pkl: ReplayPickleFile,
     behavior_stim_table: pd.DataFrame
 ):
+    """Check that the number of stimulus presentations and order/identity
+    of stimulus presentations match between behavior.pkl and replay.pkl files.
+
+    Parameters
+    ----------
+    replay_pkl : ReplayPickleFile
+        A ReplayPickleFile object, that allows easier access to key
+        replay pickle file data and metadata.
+    behavior_stim_table : pd.DataFrame
+        A behavior stimulus table created by the generate_behavior_stim_table()
+        function.
+    """
     ims = replay_pkl.image_presentations
 
     # Check that replay pkl matches behavior
@@ -369,7 +435,7 @@ def check_behavior_and_replay_pkl_match(
         im_names_arr, putative_omitted + 1, 'omitted'
     )
 
-    # Handle omitted flash edge cases ###
+    # Handle omitted flash edge cases
     behavior_df_image_names = behavior_stim_table['image_name']
 
     # Check if the first flash was omitted
@@ -387,8 +453,19 @@ def check_behavior_and_replay_pkl_match(
         )
 
     # Verify that the image list for replay is identical to behavior
-    assert len(behavior_stim_table['image_name']) == len(im_names_with_omitted)
-    assert all(behavior_stim_table['image_name'] == im_names_with_omitted)
+    expected_num_images = len(behavior_stim_table['image_name'])
+    obtained_num_images = len(im_names_with_omitted)
+    assert expected_num_images == obtained_num_images, (
+        f"Number of expected images ({expected_num_images}) presented in "
+        f"replay pickle does not match up with actual number presented in "
+        f"replay pickle ({obtained_num_images})!"
+    )
+    assert all(behavior_stim_table['image_name'] == im_names_with_omitted), (
+        f"The identity and/or order of expected images presentations in the "
+        f"replay pickle ({behavior_stim_table['image_name']}) does not match "
+        f"the actual identity and/or order of image presentations in the "
+        f"replay pickle ({obtained_num_images}!"
+    )
 
 
 def generate_replay_stim_table(
@@ -398,6 +475,35 @@ def generate_replay_stim_table(
     block_offset: int = 4,
     frame_offset: int = 0
 ) -> pd.DataFrame:
+    """Generate a stimulus table for the replay portion of a visual behavior
+    neuropixels session.
+
+    Parameters
+    ----------
+    replay_pkl : ReplayPickleFile
+        A ReplayPickleFile object, that allows easier access to key
+        replay pickle file data and metadata.
+    sync_dataset : Dataset
+        A sync Datset object that allows pythonic access of *.sync file data
+        containing global timing information for events and presented stimuli.
+    behavior_stim_table : pd.DataFrame
+        A behavior stimulus table created by the generate_behavior_stim_table()
+        function.
+    block_offset : int, optional
+        Used to give correct 'stimulus_block' values when combining with
+        DataFrames from other portions of a VBN session
+        (e.g. behavior, mapping, replay), by default 4
+    frame_offset : int, optional
+        Used to give correct 'start_frame' and 'end_frame' values when
+        combining with DataFrames from other portions of a VBN session
+        (e.g. behavior, mapping, replay), by default 0
+
+    Returns
+    -------
+    pd.DataFrame
+        A pandas dataframe with the same columns as those created by the
+        generate_behavior_stim_table() function.
+    """
 
     num_frames = replay_pkl.num_frames
     frame_timestamps = get_vsyncs(sync_dataset)
@@ -436,6 +542,61 @@ def generate_mapping_stim_table(
     sync_dataset: Dataset,
     frame_offset: int = 0
 ) -> pd.DataFrame:
+    """Generate a stimulus table for the mapping portion of a visual behavior
+    neuropixels session.
+
+    Parameters
+    ----------
+    mapping_pkl : CamStimOnePickleStimFile
+        A CamStimOnePickleStimFile object, that allows easier access to key
+        mapping pickle file data and metadata.
+    sync_dataset : Dataset
+        A sync Datset object that allows pythonic access of *.sync file data
+        containing global timing information for events and presented stimuli.
+    frame_offset : int, optional
+        Used to give correct 'start_frame' and 'end_frame' values when
+        combining with DataFrames from other portions of a VBN session
+        (e.g. behavior, mapping, replay), by default 0
+
+    Returns
+    -------
+    pd.DataFrame
+        A pandas DataFrame containing only presentations pertaining to the
+        mapping portion of a VBN session. Has the following columns:
+            duration: Duration (in seconds) of a stimulus presentation.
+            end_frame: The last frame that the stimulus was present on screen.
+            omitted: Whether the presentation was omitted or not for the
+                specific presentation.
+            orientation: The orientation of the image.
+            start_frame: The first frame that the stimulus was present on
+                screen.
+            start_time: The time in seconds when stimulus first appeared on
+                screen.
+            stop_time: The last time in seconds that stimulus appeared on
+                screen.
+            stimulus_block: A full VBN session can be broken into several
+                blocks, this column denotes the block index.
+            stimulus_name: The name of the stimulus set which images were
+                drawn from.
+            active: Whether the stimulus presentation was during a portion of
+                the session where the subject was actively performing a
+                behavior task.
+            temporal_frequency: Temporal frequency of stimulus in Hz.
+            spatial_frequency: Spatial frequency of stimulus in units of
+                cycles per degree.
+            orientation: Orientation of stimulus, 0 indicates vertical
+                orientation, 90 indicates clockwise 90 degree rotation.
+            contrast:
+                Contrast of stimulus defined as Michelson contrast.
+            position_x: Horizontal position of stimulus on screen.
+            position_y: Vertical position of stimulus on screen.
+            stimulus_index: Index of mapping stimuli type. This column must
+                be kept in order to maintain compatibility with CSD
+                calculation module.
+            color:
+                "Color" of flash stimuli. 1 indicated white flash, -1
+                indicates black (background is normally gray).
+    """
 
     def seconds_to_frames(
         seconds: List[Union[int, float]]
@@ -516,6 +677,33 @@ def create_vbn_stimulus_table(
     mapping_pkl: CamStimOnePickleStimFile,
     replay_pkl: ReplayPickleFile
 ) -> pd.DataFrame:
+    """Create a stimulus table that encompasses all 'blocks' of stimuli
+    presented during a visual behavior neuropixels session
+    (behavior stimuli, gabor stimuli, spontaneous stimlus,
+    full field flash stimuli, replay stimuli).
+
+    Parameters
+    ----------
+    sync_dataset : Dataset
+        A sync Datset object that allows pythonic access of *.sync file data
+        containing global timing information for events and presented stimuli.
+    behavior_pkl : BehaviorPickleFile
+        A BehaviorPickleFile object, that allows easier access to key
+        behavior pickle file data and metadata.
+    mapping_pkl : CamStimOnePickleStimFile
+        A CamStimOnePickleStimFile object, that allows easier access to key
+        mapping pickle file data and metadata.
+    replay_pkl : ReplayPickleFile
+        A ReplayPickleFile object, that allows easier access to key
+        replay pickle file data and metadata.
+
+    Returns
+    -------
+    pd.DataFrame
+        A pandas dataframe. For more details about columns and sources
+        of data for each column please consult:
+        http://confluence.corp.alleninstitute.org/display/IT/Visual+Behavior+Neuropixels+-+Stimulus+Table+Design+Document
+    """
 
     frame_counts = [
         pkl.num_frames for pkl in (behavior_pkl, mapping_pkl, replay_pkl)

@@ -29,7 +29,10 @@ def validate_epoch_durations(
 def validate_epoch_order(table, time_keys=("Start", "End")):
     for time_key in time_keys:
         change = np.diff(table[time_key].values)
-        assert np.amin(change) > 0
+        assert np.amin(change) > 0, (
+            "Stimulus presentations in table are not ordered "
+            "in time, but should be."
+        )
 
 
 def validate_max_spontaneous_epoch_duration(
