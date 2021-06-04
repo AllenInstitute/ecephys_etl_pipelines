@@ -30,20 +30,23 @@ jobs:
         with:
           username: alleninstitutepika
           password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Determine github branch name
+        shell: bash
+        run: echo "GH_BRANCH_NAME=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}" >> $GITHUB_ENV
       - name: Build Docker Image
         run: |
           git clone https://github.com/AllenInstitute/ecephys_etl_pipelines.git
           cd ecephys_etl_pipelines
-          echo "Using branch $GITHUB_HEAD_REF"
-          git checkout $GITHUB_HEAD_REF
-          docker build --build-arg ECEPHYS_ETL_TAG=${GITHUB_HEAD_REF} --build-arg ECEPHYS_ETL_COMMIT_SHA=${GITHUB_SHA} --tag alleninstitutepika/ecephys_etl_pipelines:$GITHUB_SHA docker/
+          echo "Using branch ${{ env.GH_BRANCH_NAME }}"
+          git checkout "${{ env.GH_BRANCH_NAME }}"
+          docker build --build-arg ECEPHYS_ETL_TAG="${{ env.GH_BRANCH_NAME }}" --build-arg ECEPHYS_ETL_COMMIT_SHA=${GITHUB_SHA} --tag alleninstitutepika/ecephys_etl_pipelines:$GITHUB_SHA docker/
       - name: Run Tests in Docker Image
         run: |
           set -e
           docker run --entrypoint /bin/bash --read-only --tmpfs /tmp alleninstitutepika/ecephys_etl_pipelines:$GITHUB_SHA /repos/ecephys_etl/.github/scripts/general_container_test.sh
       - name: Push Docker Image
         run: |
-            if [[ "$GITHUB_HEAD_REF" == "main" ]]
+            if [[ "${{ env.GH_BRANCH_NAME }}" == "main" ]]
             then
                 docker tag alleninstitutepika/ecephys_etl_pipelines:$GITHUB_SHA alleninstitutepika/ecephys_etl_pipelines:main
             else
