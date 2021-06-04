@@ -809,7 +809,7 @@ def mock_mapping_pkl_fixture(request):
                 "start_frame": [10, 14, 15, 17, 18],
                 "end_frame": [14, 15, 17, 18, 19],
                 "stimulus_name": ["spontaneous", "gabor", "gabor", "flash", "flash"],  # noqa: E501
-                "stimulus_block": [2, 1, 1, 3, 3],
+                "stimulus_block": [1, 2, 2, 3, 3],
                 "temporal_frequency": [np.nan, 4.0, 4.0, np.nan, np.nan],
                 "spatial_frequency": [np.nan, 0.08, 0.08, np.nan, np.nan],
                 "orientation": [np.nan, 45.0, 90.0, np.nan, np.nan],
@@ -822,6 +822,60 @@ def mock_mapping_pkl_fixture(request):
                 "stop_time": [22., 23., 25., 26., 27.],
                 "duration": [4., 1., 2., 1., 1.],
                 "active": [False, False, False, False, False],
+            })
+        ),
+        (
+            # mock_mapping_pkl_fixture (just use defaults)
+            {},
+            # mock_sync_dataset_fixture
+            {
+                "line_labels": ["vsync_stim"],
+                "get_falling_edges": {
+                    "vsync_stim": np.array(
+                        # Behavior frame times
+                        [1., 2., 4., 6., 8., 10., 12., 14., 16., 17.]
+                        # Mapping frame times
+                        + [18., 19., 20., 21., 22., 23., 24., 25., 26., 27., 28.]  # noqa: E501
+                        # Replay frame times
+                        + [31., 32., 34., 35., 38., 40., 43., 44., 46., 47.]
+                    ),
+                }
+            },
+            # mock_create_stim_table_return
+            pd.DataFrame({
+                "Start": [0.0, 4.0, 5.0, 7.0, 8.0, 9.0],
+                "End": [4.0, 5.0, 7.0, 8.0, 9.0, 10.0],
+                "stimulus_name": [np.nan, "gabor", "gabor", "flash", "flash", np.nan],  # noqa: E501
+                "stimulus_block": [np.nan, 0.0, 0.0, 1.0, 1.0, np.nan],
+                "TF": [np.nan, 4.0, 4.0, np.nan, np.nan, np.nan],
+                "SF": [np.nan, 0.08, 0.08, np.nan, np.nan, np.nan],
+                "Ori": [np.nan, 45.0, 90.0, np.nan, np.nan, np.nan],
+                "Contrast": [np.nan, 0.8, 0.8, 0.8, 0.8, np.nan],
+                "Pos_x": [np.nan, -30.0, 20.0, np.nan, np.nan, np.nan],
+                "Pos_y": [np.nan, 0.0, 40.0, np.nan, np.nan, np.nan],
+                "stimulus_index": [np.nan, 0.0, 0.0, 1.0, 1.0, np.nan],
+                "Color": [np.nan, np.nan, np.nan, -1.0, 1.0, np.nan]
+            }),
+            # frame_offset
+            10,
+            # expected
+            pd.DataFrame({
+                "start_frame": [10, 14, 15, 17, 18, 19],
+                "end_frame": [14, 15, 17, 18, 19, 20],
+                "stimulus_name": ["spontaneous", "gabor", "gabor", "flash", "flash", "spontaneous"],  # noqa: E501
+                "stimulus_block": [1, 2, 2, 3, 3, 4],
+                "temporal_frequency": [np.nan, 4.0, 4.0, np.nan, np.nan, np.nan],  # noqa: E501
+                "spatial_frequency": [np.nan, 0.08, 0.08, np.nan, np.nan, np.nan],  # noqa: E501
+                "orientation": [np.nan, 45.0, 90.0, np.nan, np.nan, np.nan],
+                "contrast": [np.nan, 0.8, 0.8, 0.8, 0.8, np.nan],
+                "position_x": [np.nan, -30.0, 20.0, np.nan, np.nan, np.nan],
+                "position_y": [np.nan, 0.0, 40.0, np.nan, np.nan, np.nan],
+                "stimulus_index": [np.nan, 0, 0, 1, 1, np.nan],
+                "color": [np.nan, np.nan, np.nan, -1.0, 1.0, np.nan],
+                "start_time": [18., 22., 23., 25., 26., 27.],
+                "stop_time": [22., 23., 25., 26., 27., 28.],
+                "duration": [4., 1., 2., 1., 1., 1.],
+                "active": [False, False, False, False, False, False],
             })
         )
     ],
@@ -894,7 +948,7 @@ def test_generate_mapping_stim_table(
                 "start_frame": [10, 14, 15, 17, 18],
                 "end_frame": [14, 15, 17, 18, 19],
                 "stimulus_name": ["spontaneous", "gabor", "gabor", "flash", "flash"],  # noqa: E501
-                "stimulus_block": [2, 1, 1, 3, 3],
+                "stimulus_block": [1, 2, 2, 3, 3],
                 "temporal_frequency": [np.nan, 4.0, 4.0, np.nan, np.nan],
                 "spatial_frequency": [np.nan, 0.08, 0.08, np.nan, np.nan],
                 "orientation": [np.nan, 45.0, 90.0, np.nan, np.nan],
@@ -928,7 +982,7 @@ def test_generate_mapping_stim_table(
             }).set_index("stimulus_presentations_id"),
             # expected
             pd.DataFrame({
-                "stimulus_block": [0] * 5 + [2, 1, 1, 3, 3] + [4] * 5,
+                "stimulus_block": [0] * 5 + [1, 2, 2, 3, 3] + [4] * 5,
                 "active": [True] * 5 + [False] * 10,
                 "stimulus_name": (
                     ["test_image_set"] * 5

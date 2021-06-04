@@ -540,7 +540,8 @@ def generate_replay_stim_table(
 def generate_mapping_stim_table(
     mapping_pkl: CamStimOnePickleStimFile,
     sync_dataset: Dataset,
-    frame_offset: int = 0
+    frame_offset: int = 0,
+    block_offset: int = 1
 ) -> pd.DataFrame:
     """Generate a stimulus table for the mapping portion of a visual behavior
     neuropixels session.
@@ -557,6 +558,10 @@ def generate_mapping_stim_table(
         Used to give correct 'start_frame' and 'end_frame' values when
         combining with DataFrames from other portions of a VBN session
         (e.g. behavior, mapping, replay), by default 0
+    block_offset : int, optional
+        Used to give correct 'stimulus_block' values when combining with
+        DataFrames from other portions of a VBN session
+        (e.g. behavior, mapping, replay), by default 1
 
     Returns
     -------
@@ -627,22 +632,33 @@ def generate_mapping_stim_table(
         }
     )
 
-    # Fill in table row(s) for 'spontaneous' stimuli
+    # Fill in "stimulus_name" for 'spontaneous' stimuli
     # Characterized by NaN for "stimulus_name" and "stimulus_block"
     spont_rows = (
         stim_df["stimulus_name"].isnull() & stim_df["stimulus_block"].isnull()
     )
     stim_df.loc[spont_rows, "stimulus_name"] = 'spontaneous'
-    stim_df.loc[spont_rows, "stimulus_block"] = 2
 
-    # Update "stimulus_block" values for gabor and flash stimuli
-    # Gabor "stimulus_block" should take on value of 1
-    gabor_rows = stim_df["stimulus_name"].str.contains("gabor")
-    stim_df.loc[gabor_rows, "stimulus_block"] = 1
-    # Flash "stimulus_block" should take on value of 3
-    flash_rows = stim_df["stimulus_name"].str.contains("flash")
-    stim_df.loc[flash_rows, "stimulus_block"] = 3
+    # Fill in "stimulus_block" column values
+    # "stimulus_block" column should start at "block_offset" value and
+    # increment by one every time the "stimulus_name" changes
+    shifted_stim_names = stim_df["stimulus_name"].shift(
+        1, fill_value=stim_df["stimulus_name"].iloc[0]
+    )
+    is_change = shifted_stim_names != stim_df["stimulus_name"]
+    change_indices = np.where(is_change)[0]
+    change_indices = np.append(change_indices, len(stim_df["stimulus_name"]))
 
+    stimulus_block = []
+    prev_change_idx = 0
+    for change_idx in change_indices:
+        stimulus_block.extend([block_offset] * (change_idx - prev_change_idx))
+        prev_change_idx = change_idx
+        block_offset += 1
+
+    stim_df["stimulus_block"] = stimulus_block
+
+    # Now fill in other columns
     stim_df['start_frame'] = stim_df['start_frame'].astype(int) + frame_offset
     stim_df['end_frame'] = stim_df['end_frame'].astype(int) + frame_offset
     stim_df['start_time'] = frame_timestamps[stim_df['start_frame']]
