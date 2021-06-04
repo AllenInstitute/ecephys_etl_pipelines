@@ -20,7 +20,7 @@ setup(
     python_requires=">=3.8",
     setup_requires=["setuptools_scm"],
     install_requires=requirements,
-    extras_requires={
+    extras_require={
         "test": test_requirements
     }
 )
