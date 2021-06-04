@@ -7,7 +7,9 @@ LABEL description="This dockerfile provides a working environment for \
                    electrophysiology data processing pipelines."
 
 ARG ECEPHYS_ETL_TAG=main
+ARG ECEPHYS_ETL_COMMIT_SHA="unknown build"
 
+ENV ECEPHYS_ETL_COMMIT_SHA=${ECEPHYS_ETL_COMMIT_SHA}
 ENV CONDA_ENVS=/envs
 ENV ECEPHYS_ETL_ENV=${CONDA_ENVS}/ecephys_etl
 
