@@ -696,7 +696,7 @@ def test_check_behavior_and_replay_pkl_match(
                 "active": [True] * 5,
             }).set_index("stimulus_presentations_id"),
             # block_offset
-            4,
+            5,
             # frame_offset
             20,
             # expected
@@ -710,7 +710,7 @@ def test_check_behavior_and_replay_pkl_match(
                 "start_frame": [20, 22, 24, 26, 28],
                 "start_time": [31., 34., 38., 43., 46.],
                 "stop_time": [32., 35., 40., 44., 47.],
-                "stimulus_block": [4] * 5,
+                "stimulus_block": [5] * 5,
                 "stimulus_name": ["test_image_set"] * 5,
                 "is_change": [False, False, True, False, False],
                 "rewarded": [False, False, True, False, False],
@@ -947,16 +947,16 @@ def test_generate_mapping_stim_table(
             pd.DataFrame({
                 "start_frame": [10, 14, 15, 17, 18],
                 "end_frame": [14, 15, 17, 18, 19],
-                "stimulus_name": ["spontaneous", "gabor", "gabor", "flash", "flash"],  # noqa: E501
-                "stimulus_block": [1, 2, 2, 3, 3],
+                "stimulus_name": ["spontaneous", "gabor", "gabor", "flash", "spontaneous"],  # noqa: E501
+                "stimulus_block": [1, 2, 2, 3, 4],
                 "temporal_frequency": [np.nan, 4.0, 4.0, np.nan, np.nan],
                 "spatial_frequency": [np.nan, 0.08, 0.08, np.nan, np.nan],
                 "orientation": [np.nan, 45.0, 90.0, np.nan, np.nan],
-                "contrast": [np.nan, 0.8, 0.8, 0.8, 0.8],
+                "contrast": [np.nan, 0.8, 0.8, 0.8, np.nan],
                 "position_x": [np.nan, -30.0, 20.0, np.nan, np.nan],
                 "position_y": [np.nan, 0.0, 40.0, np.nan, np.nan],
-                "stimulus_index": [np.nan, 0, 0, 1, 1],
-                "color": [np.nan, np.nan, np.nan, -1.0, 1.0],
+                "stimulus_index": [np.nan, 0, 0, 1, np.nan],
+                "color": [np.nan, np.nan, np.nan, -1.0, np.nan],
                 "start_time": [18., 22., 23., 25., 26.],
                 "stop_time": [22., 23., 25., 26., 27.],
                 "duration": [4., 1., 2., 1., 1.],
@@ -973,7 +973,7 @@ def test_generate_mapping_stim_table(
                 "start_frame": [20, 22, 24, 26, 28],
                 "start_time": [31., 34., 38., 43., 46.],
                 "stop_time": [32., 35., 40., 44., 47.],
-                "stimulus_block": [4] * 5,
+                "stimulus_block": [5] * 5,
                 "stimulus_name": ["test_image_set"] * 5,
                 "is_change": [False, False, True, False, False],
                 "rewarded": [False, False, True, False, False],
@@ -982,11 +982,11 @@ def test_generate_mapping_stim_table(
             }).set_index("stimulus_presentations_id"),
             # expected
             pd.DataFrame({
-                "stimulus_block": [0] * 5 + [1, 2, 2, 3, 3] + [4] * 5,
+                "stimulus_block": [0] * 5 + [1, 2, 2, 3, 4] + [5] * 5,
                 "active": [True] * 5 + [False] * 10,
                 "stimulus_name": (
                     ["test_image_set"] * 5
-                    + ["spontaneous", "gabor", "gabor", "flash", "flash"]
+                    + ["spontaneous", "gabor", "gabor", "flash", "spontaneous"]
                     + ["test_image_set"] * 5
                 ),
                 "start_time": [
@@ -1056,7 +1056,7 @@ def test_generate_mapping_stim_table(
                 ),
                 "contrast": (
                     [np.nan] * 5
-                    + [np.nan, 0.8, 0.8, 0.8, 0.8]
+                    + [np.nan, 0.8, 0.8, 0.8, np.nan]
                     + [np.nan] * 5
                 ),
                 "position_x": (
@@ -1071,12 +1071,12 @@ def test_generate_mapping_stim_table(
                 ),
                 "stimulus_index": (
                     [np.nan] * 5
-                    + [np.nan, 0, 0, 1, 1]
+                    + [np.nan, 0, 0, 1, np.nan]
                     + [np.nan] * 5
                 ),
                 "color": (
                     [np.nan] * 5
-                    + [np.nan, np.nan, np.nan, -1.0, 1.0]
+                    + [np.nan, np.nan, np.nan, -1.0, np.nan]
                     + [np.nan] * 5
                 ),
             }),
