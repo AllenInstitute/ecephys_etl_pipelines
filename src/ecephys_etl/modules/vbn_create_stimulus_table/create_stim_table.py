@@ -472,7 +472,7 @@ def generate_replay_stim_table(
     replay_pkl: ReplayPickleFile,
     sync_dataset: Dataset,
     behavior_stim_table: pd.DataFrame,
-    block_offset: int = 4,
+    block_offset: int = 5,
     frame_offset: int = 0
 ) -> pd.DataFrame:
     """Generate a stimulus table for the replay portion of a visual behavior
@@ -492,7 +492,7 @@ def generate_replay_stim_table(
     block_offset : int, optional
         Used to give correct 'stimulus_block' values when combining with
         DataFrames from other portions of a VBN session
-        (e.g. behavior, mapping, replay), by default 4
+        (e.g. behavior, mapping, replay), by default 5
     frame_offset : int, optional
         Used to give correct 'start_frame' and 'end_frame' values when
         combining with DataFrames from other portions of a VBN session
