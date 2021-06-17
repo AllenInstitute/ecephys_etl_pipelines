@@ -26,28 +26,19 @@ def test_barcode_line(line_labels, expected):
 
 
 @pytest.mark.parametrize(
-    "sample_frequency,rising_edges,falling_edges,times_exp,codes_exp,table",
+    "sample_frequency, rising_edges, falling_edges, times_exp, codes_exp",
     [
         [
             1,
             np.array([30, 50, 50.08]),
             np.array([31, 50.04, 50.12]),
             [50],
-            [3],
-            False
-        ],
-        [
-            1,
-            np.array([30, 50, 50.08]),
-            np.array([31, 50.04, 50.12]),
-            [50],
-            [3],
-            True
-        ],
+            [3]
+        ]
     ],
 )
 def test_extract_barcodes(
-    sample_frequency, rising_edges, falling_edges, times_exp, codes_exp, table
+    sample_frequency, rising_edges, falling_edges, times_exp, codes_exp
 ):
 
     dataset = BarcodeSyncDataset()
@@ -64,12 +55,7 @@ def test_extract_barcodes(
             return_value=falling_edges,
         ):
 
-            if table:
-                table = dataset.get_barcode_table()
-                times = table["times"]
-                codes = table["codes"]
-            else:
-                times, codes = dataset.extract_barcodes()
+            times, codes = dataset.extract_barcodes()
 
             assert np.allclose(times, times_exp)
             assert np.allclose(codes, codes_exp)

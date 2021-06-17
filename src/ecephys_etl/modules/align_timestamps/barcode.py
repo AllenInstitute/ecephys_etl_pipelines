@@ -4,10 +4,10 @@ import numpy as np
 def extract_barcodes_from_times(
     on_times,
     off_times,
-    inter_barcode_interval=10,
-    bar_duration=0.03,
-    barcode_duration_ceiling=2,
-    nbits=32,
+    inter_barcode_interval: float = 10.0,
+    bar_duration: float = 0.03,
+    barcode_duration_ceiling: float = 2.0,
+    nbits: int = 32,
 ):
     """Read barcodes from timestamped rising and falling edges.
 
@@ -38,9 +38,7 @@ def extract_barcodes_from_times(
     ignores first code in prod (ok, but not intended)
     ignores first on pulse (intended - this is needed to identify that a
     barcode is starting)
-
     """
-
     start_indices = np.diff(on_times)
     a = np.where(start_indices > inter_barcode_interval)[0]
     barcode_start_times = on_times[a + 1]
@@ -121,9 +119,7 @@ def find_matching_index(
         matching index for master barcodes (None if not found)
     probe_barcode_index : int
         matching index for probe barcodes (None if not found)
-
     """
-
     foundMatch = False
     master_barcode_index = None
 
@@ -182,9 +178,7 @@ def match_barcodes(master_times, master_barcodes, probe_times, probe_barcodes):
     master_interval : np.ndarray
         Start and end times of the matched interval according to the master
         clock
-
     """
-
     master_start_index, probe_start_index = find_matching_index(
         master_barcodes, probe_barcodes, alignment_type="start"
     )
@@ -240,7 +234,6 @@ def linear_transform_from_intervals(master, probe):
     solves
         (master + translation) * scale = probe for scale and translation
     """
-
     if probe[1] is not None:
         scale = (probe[1] - probe[0]) / (master[1] - master[0])
     else:

@@ -1,5 +1,4 @@
-import warnings
-
+from typing import Tuple
 import numpy as np
 
 from ecephys_etl.modules.align_timestamps import barcode
@@ -7,26 +6,44 @@ from ecephys_etl.data_extractors.ecephys_sync_dataset import EcephysSyncDataset
 
 
 class BarcodeSyncDataset(EcephysSyncDataset):
+
     @property
     def barcode_line(self):
         """ Obtain the index of the barcode line for this dataset.
 
-        """
+        Possible line labels for ecephys barcodes can be found in the
+        following (internal) MPE sheet:
 
+        https://alleninstitute.sharepoint.com/:x:/s/Instrumentation/ES2bi1xJ3E9NupX-zQeXTlYBS2mVVySycfbCQhsD_jPMUw?e=Z9jCwH
+        """
         if "barcode" in self.line_labels:
             return self.line_labels.index("barcode")
         elif "barcodes" in self.line_labels:
             return self.line_labels.index("barcodes")
+        elif "barcode_ephys" in self.line_labels:
+            return self.line_labels.index("barcode_ephys")
         else:
             raise ValueError("no barcode line found")
 
-    def extract_barcodes(self, **barcode_kwargs):
+    def extract_barcodes(
+        self,
+        inter_barcode_interval: float = 10.0,
+        bar_duration: float = 0.03,
+        barcode_duration_ceiling: float = 2.0,
+        nbits: int = 32
+    ) -> Tuple[np.ndarray, np.ndarray]:
         """ Read barcodes and their times from this dataset's barcode line.
 
         Parameters
         ----------
-        **barcode_kwargs :
-            Will be passed to .barcode.extract_barcodes_from_times
+        inter_barcode_interval : numeric, optional
+            Minimun duration of time between barcodes. By default 10.0
+        bar_duration : numeric, optional
+            A value slightly shorter than the expected duration of each bar
+        barcode_duration_ceiling : numeric, optional
+            The maximum duration of a single barcode
+        nbits : int, optional
+            The bit-depth of each barcode
 
         Returns
         -------
@@ -36,7 +53,6 @@ class BarcodeSyncDataset(EcephysSyncDataset):
             The values of each detected barcode
 
         """
-
         sample_freq_digital = float(self.sample_frequency)
         barcode_channel = self.barcode_line
 
@@ -47,24 +63,9 @@ class BarcodeSyncDataset(EcephysSyncDataset):
         off_times = off_events / sample_freq_digital
 
         return barcode.extract_barcodes_from_times(
-            on_times, off_times, **barcode_kwargs
+            on_times, off_times,
+            inter_barcode_interval=inter_barcode_interval,
+            bar_duration=bar_duration,
+            barcode_duration_ceiling=barcode_duration_ceiling,
+            nbits=nbits
         )
-
-    def get_barcode_table(self, **barcode_kwargs):
-        """ A convenience method for getting barcode times and codes in a dictionary.
-
-        Notes
-        -----
-        This method is deprecated!
-
-        """
-        warnings.warn(
-            np.VisibleDeprecationWarning(
-                "This function is deprecated as unecessary "
-                "(and slated for removal). Instead, simply use "
-                "extract_barcodes."
-            )
-        )
-
-        barcode_times, barcodes = self.extract_barcodes(**barcode_kwargs)
-        return {"codes": barcodes, "times": barcode_times}
