@@ -1,6 +1,6 @@
-from . import barcode
-
 import numpy as np
+
+from ecephys_etl.modules.align_timestamps import barcode
 
 
 class ProbeSynchronizer(object):

@@ -1,6 +1,6 @@
 import numpy as np
 
-from . import barcode
+from ecephys_etl.modules.align_timestamps import barcode
 
 
 def extract_barcodes_from_states(

@@ -1,16 +1,23 @@
 import numpy as np
 
-from allensdk.brain_observatory.argschema_utilities import \
-    ArgSchemaParserPlus, \
-    write_or_print_outputs
-from ._schemas import InputParameters, OutputParameters
-from .barcode_sync_dataset import BarcodeSyncDataset
-from .channel_states import extract_barcodes_from_states, \
-    extract_splits_from_states
-from .probe_synchronizer import ProbeSynchronizer
+from argschema import ArgSchemaParser
+
+from ecephys_etl.modules.align_timestamps._schemas import (
+    InputParameters, OutputParameters
+)
+from ecephys_etl.modules.align_timestamps.barcode_sync_dataset import (
+    BarcodeSyncDataset
+)
+from ecephys_etl.modules.align_timestamps.channel_states import (
+    extract_barcodes_from_states, extract_splits_from_states
+)
+from ecephys_etl.modules.align_timestamps.probe_synchronizer import (
+    ProbeSynchronizer
+)
 
 
-def align_timestamps(args):
+def align_timestamps(sync_h5_path: str, probes: dict) -> dict:
+
     sync_dataset = BarcodeSyncDataset.factory(args["sync_h5_path"])
     sync_times, sync_codes = sync_dataset.extract_barcodes()
 
@@ -98,14 +105,15 @@ def align_timestamps(args):
     return {"probe_outputs": probe_output_info}
 
 
-def main():
-    mod = ArgSchemaParserPlus(
-        schema_type=InputParameters, output_schema_type=OutputParameters
-    )
-    output = align_timestamps(mod.args)
-
-    write_or_print_outputs(data=output, parser=mod)
-
 
 if __name__ == "__main__":
-    main()
+    parser = ArgSchemaParser(
+        schema_type=InputParameters, output_schema_type=OutputSchema
+    )
+    output = align_timestamps(**parser.args)
+
+    output.update({"input_parameters": parser.args})
+    if 'output_json' in parser.args:
+        parser.output(output, indent=2)
+    else:
+        print(parser.get_output_json(output))

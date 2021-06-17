@@ -8,7 +8,9 @@ import numpy as np
 
 DATA_DIR = os.environ.get(
     "ECEPHYS_PIPELINE_DATA",
-    os.path.join("/", "allen", "aibs", "informatics", "module_test_data", "ecephys"),
+    os.path.join(
+        "/", "allen", "aibs", "informatics", "module_test_data", "ecephys"
+    ),
 )
 
 
@@ -91,24 +93,32 @@ def align_timestamps_706875901_expected_files():
 @pytest.fixture(scope="module")
 def run_align_timestamps_706875901(tmpdir_factory):
     base_path = tmpdir_factory.mktemp("align_timestamps_integration")
-    executable = ["python", "-m", "allensdk.brain_observatory.ecephys.align_timestamps"]
+    executable = [
+        "python", "-m", "allensdk.brain_observatory.ecephys.align_timestamps"
+    ]
 
-    input_json_path = os.path.join(base_path, "706875901_align_timestamps_input.json")
-    output_json_path = os.path.join(base_path, "706875901_align_timestamps_output.json")
+    input_json_path = os.path.join(
+        base_path, "706875901_align_timestamps_input.json"
+    )
+    output_json_path = os.path.join(
+        base_path, "706875901_align_timestamps_output.json"
+    )
     executable.extend(["--input_json", input_json_path])
     executable.extend(["--output_json", output_json_path])
 
     input_json_template_path = os.path.join(
         DATA_DIR, "706875901_align_timestamps_input.json"
     )
-    apply_input_json_template(input_json_template_path, input_json_path, base_path)
+    apply_input_json_template(
+        input_json_template_path, input_json_path, base_path
+    )
 
     sp.check_call(executable)
 
     return output_json_path
 
 
-@pytest.mark.requires_bamboo
+@pytest.mark.xfail
 def test_align_timestamps_parameters_706875901(
     run_align_timestamps_706875901, align_timestamps_706875901_expected_params
 ):
@@ -130,7 +140,7 @@ def test_align_timestamps_parameters_706875901(
         )
 
 
-@pytest.mark.requires_bamboo
+@pytest.mark.xfail
 def test_align_timestamps_files_706875901(
     run_align_timestamps_706875901, align_timestamps_706875901_expected_files
 ):
@@ -150,8 +160,10 @@ def test_align_timestamps_files_706875901(
             assert np.allclose(expected_data, obtained_data)
 
 
-@pytest.mark.requires_bamboo
-def test_align_timestamps_barcode_agreement_706875901(run_align_timestamps_706875901):
+@pytest.mark.xfail
+def test_align_timestamps_barcode_agreement_706875901(
+    run_align_timestamps_706875901
+):
 
     with open(run_align_timestamps_706875901, "r") as output_json_file:
         output_json_data = json.load(output_json_file)
@@ -164,7 +176,9 @@ def test_align_timestamps_barcode_agreement_706875901(run_align_timestamps_70687
     barcode_timestamp_lengths = []
     for probe in output_json_data["input_parameters"]["probes"]:
         name = probe["name"]
-        barcode_data = np.load(probe["barcode_timestamps_path"], allow_pickle=False)
+        barcode_data = np.load(
+            probe["barcode_timestamps_path"], allow_pickle=False
+        )
 
         total_time_shift = probe_parameters[name]["total_time_shift"]
         global_probe_sampling_rate = probe_parameters[name][

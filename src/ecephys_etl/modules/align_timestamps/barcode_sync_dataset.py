@@ -2,10 +2,8 @@ import warnings
 
 import numpy as np
 
-from . import barcode
-from allensdk.brain_observatory.ecephys.file_io.ecephys_sync_dataset import (
-    EcephysSyncDataset,
-)
+from ecephys_etl.modules.align_timestamps import barcode
+from ecephys_etl.data_extractors.ecephys_sync_dataset import EcephysSyncDataset
 
 
 class BarcodeSyncDataset(EcephysSyncDataset):

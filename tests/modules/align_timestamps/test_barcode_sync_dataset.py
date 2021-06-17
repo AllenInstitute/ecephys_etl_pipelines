@@ -3,8 +3,8 @@ from unittest import mock
 import pytest
 import numpy as np
 
-from allensdk.brain_observatory.ecephys.align_timestamps.barcode_sync_dataset import (
-    BarcodeSyncDataset,
+from ecephys_etl.modules.align_timestamps.barcode_sync_dataset import (
+    BarcodeSyncDataset
 )
 
 
@@ -28,8 +28,22 @@ def test_barcode_line(line_labels, expected):
 @pytest.mark.parametrize(
     "sample_frequency,rising_edges,falling_edges,times_exp,codes_exp,table",
     [
-        [1, np.array([30, 50, 50.08]), np.array([31, 50.04, 50.12]), [50], [3], False],
-        [1, np.array([30, 50, 50.08]), np.array([31, 50.04, 50.12]), [50], [3], True],
+        [
+            1,
+            np.array([30, 50, 50.08]),
+            np.array([31, 50.04, 50.12]),
+            [50],
+            [3],
+            False
+        ],
+        [
+            1,
+            np.array([30, 50, 50.08]),
+            np.array([31, 50.04, 50.12]),
+            [50],
+            [3],
+            True
+        ],
     ],
 )
 def test_extract_barcodes(
@@ -41,11 +55,12 @@ def test_extract_barcodes(
     dataset.line_labels = ["barcode"]
 
     with mock.patch(
-        "allensdk.brain_observatory.sync_dataset.Dataset.get_rising_edges",
+        "ecephys_etl.data_extractors.sync_dataset.Dataset.get_rising_edges",
         return_value=rising_edges,
     ):
         with mock.patch(
-            "allensdk.brain_observatory.sync_dataset.Dataset.get_falling_edges",
+            "ecephys_etl.data_extractors.sync_dataset"
+            ".Dataset.get_falling_edges",
             return_value=falling_edges,
         ):
 
