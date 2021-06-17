@@ -16,12 +16,11 @@ def extract_barcodes_from_states(
         Sample index of each event.
     sampling_rate : numeric
         Samples / second
-    **barcode_kwargs : 
+    **barcode_kwargs :
         Additional parameters describing the barcodes.
 
 
     """
-
     on_events = np.where(channel_states == 1)
     off_events = np.where(channel_states == -1)
 
@@ -44,12 +43,11 @@ def extract_splits_from_states(
         Sample index of each event.
     sampling_rate : numeric
         Samples / second
-    **barcode_kwargs : 
+    **barcode_kwargs :
         Additional parameters describing the barcodes.
 
 
     """
-
     split_events = np.where(channel_states == 0)
 
     T_split = timestamps[split_events] / float(sampling_rate)

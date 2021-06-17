@@ -1,12 +1,10 @@
-from unittest import mock
-
 import pytest
 import numpy as np
-
 
 from ecephys_etl.modules.align_timestamps.probe_synchronizer import (
     ProbeSynchronizer
 )
+
 
 def get_test_barcodes():
 
