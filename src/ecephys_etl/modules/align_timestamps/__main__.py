@@ -137,7 +137,10 @@ if __name__ == "__main__":
     parser = ArgSchemaParser(
         schema_type=InputParameters, output_schema_type=OutputParameters
     )
-    output = align_timestamps(**parser.args)
+    output = align_timestamps(
+        sync_h5_path=parser.args["sync_h5_path"],
+        probes=parser.args["probes"]
+    )
 
     output.update({"input_parameters": parser.args})
     if 'output_json' in parser.args:
