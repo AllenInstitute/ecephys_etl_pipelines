@@ -1,10 +1,12 @@
 import logging
+from typing import Tuple
+
 import numpy as np
 
 
 def extract_barcodes_from_times(
-    on_times,
-    off_times,
+    on_times: np.ndarray,
+    off_times: np.ndarray,
     inter_barcode_interval: float = 10.0,
     bar_duration: float = 0.03,
     barcode_duration_ceiling: float = 2.0,
@@ -19,11 +21,12 @@ def extract_barcodes_from_times(
     off_times : numpy.ndarray
         Timestamps of falling edges on the barcode line
     inter_barcode_interval : numeric, optional
-        Minimun duration of time between barcodes.
+        Minimun duration of time between barcodes (in seconds).
     bar_duration : numeric, optional
-        A value slightly shorter than the expected duration of each bar
+        A value slightly shorter than the expected duration of each barcode
+        (in seconds)
     barcode_duration_ceiling : numeric, optional
-        The maximum duration of a single barcode
+        The maximum duration of a single barcode (in seconds)
     nbits : int, optional
         The bit-depth of each barcode
 
@@ -99,7 +102,9 @@ def extract_barcodes_from_times(
 
 
 def find_matching_index(
-    master_barcodes, probe_barcodes, alignment_type="start"
+    master_barcodes: np.ndarray,
+    probe_barcodes: np.ndarray,
+    alignment_type: str = "start"
 ):
     """Given a set of barcodes for the master clock and the probe clock, find
     the indices of a matching set, either starting from the beginning or the
@@ -150,7 +155,12 @@ def find_matching_index(
         return None, None
 
 
-def match_barcodes(master_times, master_barcodes, probe_times, probe_barcodes):
+def match_barcodes(
+    master_times: np.ndarray,
+    master_barcodes: np.ndarray,
+    probe_times: np.ndarray,
+    probe_barcodes: np.ndarray
+) -> Tuple[np.ndarray, np.ndarray]:
     """Given sequences of barcode values and (local) times on a probe line and
     a master line, find the time points on each clock corresponding to the
     first and last shared barcode.
