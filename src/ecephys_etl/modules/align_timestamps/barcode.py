@@ -52,18 +52,14 @@ def extract_barcodes_from_times(
     for i, t in enumerate(barcode_start_times):
 
         oncode = on_times[
-            np.where(
-                np.logical_and(
-                    on_times > t, on_times < t + barcode_duration_ceiling
-                )
-            )[0]
+            np.logical_and(
+                on_times > t, on_times < t + barcode_duration_ceiling
+            )
         ]
         offcode = off_times[
-            np.where(
-                np.logical_and(
-                    off_times > t, off_times < t + barcode_duration_ceiling
-                )
-            )[0]
+            np.logical_and(
+                off_times > t, off_times < t + barcode_duration_ceiling
+            )
         ]
 
         currTime = offcode[0]

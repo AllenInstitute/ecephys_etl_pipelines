@@ -65,8 +65,10 @@ class ProbeSynchronizer(object):
         """
 
         in_range = np.where(
-            ((samples / self.local_probe_sampling_rate) >= self.min_time)
-            * ((samples / self.local_probe_sampling_rate) < self.max_time)
+            np.logical_and(
+                (samples / self.local_probe_sampling_rate) >= self.min_time,
+                (samples / self.local_probe_sampling_rate) < self.max_time
+            )
         )[0]
 
         if self.global_probe_sampling_rate > 0:
@@ -141,7 +143,7 @@ class ProbeSynchronizer(object):
         barcodes_array = np.array(probe_barcodes)
 
         ok_barcodes = np.where(
-            (times_array > min_time) * (times_array < max_time)
+            np.logical_and(times_array > min_time, times_array < max_time)
         )[0]
         times_to_align = list(times_array[ok_barcodes])
         barcodes_to_align = list(barcodes_array[ok_barcodes])
