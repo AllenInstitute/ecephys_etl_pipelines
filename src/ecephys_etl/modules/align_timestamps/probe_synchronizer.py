@@ -1,3 +1,4 @@
+import logging
 import numpy as np
 
 from ecephys_etl.modules.align_timestamps import barcode
@@ -134,6 +135,7 @@ class ProbeSynchronizer(object):
             the probe clock.
 
         """
+        logger = logging.getLogger("Ecephys_Align_Timestamps_Module")
 
         times_array = np.array(probe_barcode_times)
         barcodes_array = np.array(probe_barcodes)
@@ -146,7 +148,7 @@ class ProbeSynchronizer(object):
 
         if len(barcodes_to_align) > 0:
 
-            print("Num barcodes: " + str(len(barcodes_to_align)))
+            logger.info(f"Num barcodes: {len(barcodes_to_align)}")
 
             total_time_shift, global_probe_sampling_rate, _ = (
                 barcode.get_probe_time_offset(
@@ -160,7 +162,7 @@ class ProbeSynchronizer(object):
             )
 
         else:
-            print("Not enough barcodes...setting sampling rate to 0")
+            logger.warning("Not enough barcodes...setting sampling rate to 0")
             total_time_shift = 0
             global_probe_sampling_rate = 0
 

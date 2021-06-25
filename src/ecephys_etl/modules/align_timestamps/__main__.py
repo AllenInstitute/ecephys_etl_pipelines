@@ -1,4 +1,5 @@
 from typing import Dict, List, TypedDict
+import logging
 
 import numpy as np
 
@@ -47,13 +48,14 @@ def align_timestamps(
         Returns a dictionary where the top level key is "probe_outputs"
         and the value is a list of SingleProbeInfo TypedDicts.
     """
+    logger = logging.getLogger("Ecephys_Align_Timestamps_Module")
 
     sync_dataset = BarcodeSyncDataset.factory(sync_h5_path)
     sync_times, sync_codes = sync_dataset.extract_barcodes()
 
     probe_output_info = []
     for probe in probes:
-        print(probe["name"])
+        logger.info(f"Aligning timestamps for: {probe['name']}")
 
         channel_states = np.load(probe["barcode_channel_states_path"])
         timestamps = np.load(probe["barcode_timestamps_path"])
@@ -65,8 +67,7 @@ def align_timestamps(
             channel_states, timestamps, probe["sampling_rate"]
         )
 
-        print("Split times:")
-        print(probe_split_times)
+        logger.info(f"Split times: {probe_split_times}")
 
         synchronizers = []
 
@@ -95,17 +96,22 @@ def align_timestamps(
         mapped_files = {}
 
         for timestamp_file in probe["mappable_timestamp_files"]:
-            # print(timestamp_file["name"])
             timestamps = np.load(timestamp_file["input_path"])
             aligned_timestamps = np.copy(timestamps).astype("float64")
 
+            logger.info(
+                f"Synchronization details for input file: "
+                f"{timestamp_file['input_path']}"
+            )
+
             for synchronizer in synchronizers:
                 aligned_timestamps = synchronizer(aligned_timestamps)
-                print(
-                    "total time shift: " + str(synchronizer.total_time_shift))
-                print(
-                    "actual sampling rate: "
-                    + str(synchronizer.global_probe_sampling_rate)
+                logger.info(
+                    f"total time shift: {synchronizer.total_time_shift}"
+                )
+                logger.info(
+                    f"actual sampling rate: "
+                    f"{synchronizer.global_probe_sampling_rate}"
                 )
 
             np.save(
@@ -138,6 +144,21 @@ if __name__ == "__main__":
         schema_type=AlignTimestampsInputParameters,
         output_schema_type=AlignTimestampsOutputParameters
     )
+    logging_level = parser.args.get('log_level', logging.DEBUG)
+
+    # Need to remove root log handler instantiated by argschema
+    for handler in logging.root.handlers[:]:
+        logging.root.removeHandler(handler)
+
+    logging.basicConfig(
+        format='%(asctime)-15s : %(name)-20s : %(levelname)-8s : %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S',
+        level=logging_level
+    )
+
+    logger = logging.getLogger("Ecephys_Align_Timestamps_Module")
+    logger.setLevel(logging_level)
+
     output = align_timestamps(
         sync_h5_path=parser.args["sync_h5_path"],
         probes=parser.args["probes"]
@@ -147,4 +168,4 @@ if __name__ == "__main__":
     if 'output_json' in parser.args:
         parser.output(output, indent=2)
     else:
-        print(parser.get_output_json(output))
+        logging.info(parser.get_output_json(output))

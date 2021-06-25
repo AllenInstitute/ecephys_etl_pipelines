@@ -1,3 +1,4 @@
+import logging
 import numpy as np
 
 
@@ -179,6 +180,8 @@ def match_barcodes(master_times, master_barcodes, probe_times, probe_barcodes):
         Start and end times of the matched interval according to the master
         clock
     """
+    logger = logging.getLogger("Ecephys_Align_Timestamps_Module")
+
     master_start_index, probe_start_index = find_matching_index(
         master_barcodes, probe_barcodes, alignment_type="start"
     )
@@ -189,17 +192,14 @@ def match_barcodes(master_times, master_barcodes, probe_times, probe_barcodes):
     else:
         t_m_start, t_p_start = None, None
 
-    # print(master_barcodes)
-    # print(probe_barcodes)
-
-    print("Master start index: " + str(master_start_index))
+    logger.info(f"Master start index: {master_start_index}")
     if len(probe_barcodes) > 2:
         master_end_index, probe_end_index = find_matching_index(
             master_barcodes, probe_barcodes, alignment_type='end'
         )
 
         if probe_end_index is not None:
-            print("Probe end index: " + str(probe_end_index))
+            logger.info(f"Probe end index: {probe_end_index}")
             t_m_end = master_times[master_end_index]
             t_p_end = probe_times[probe_end_index]
         else:
@@ -287,6 +287,8 @@ def get_probe_time_offset(
         Defines the start and end times of the sync interval on the master
         clock
     """
+    logger = logging.getLogger("Ecephys_Align_Timestamps_Module")
+
     probe_endpoints, master_endpoints = match_barcodes(
         master_times, master_barcodes, probe_times, probe_barcodes
     )
@@ -300,7 +302,7 @@ def get_probe_time_offset(
 
         total_time_shift = time_offset - acq_start_time
     else:
-        print("Not enough barcodes...setting sampling rate to 0")
+        logger.warning("Not enough barcodes...setting sampling rate to 0")
         total_time_shift = 0
         probe_rate = 0
 
