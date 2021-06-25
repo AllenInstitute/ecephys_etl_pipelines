@@ -5,7 +5,7 @@ import numpy as np
 from argschema import ArgSchemaParser
 
 from ecephys_etl.modules.align_timestamps._schemas import (
-    InputParameters, OutputParameters
+    AlignTimestampsInputParameters, AlignTimestampsOutputParameters
 )
 from ecephys_etl.modules.align_timestamps.barcode_sync_dataset import (
     BarcodeSyncDataset
@@ -135,7 +135,8 @@ def align_timestamps(
 
 if __name__ == "__main__":
     parser = ArgSchemaParser(
-        schema_type=InputParameters, output_schema_type=OutputParameters
+        schema_type=AlignTimestampsInputParameters,
+        output_schema_type=AlignTimestampsOutputParameters
     )
     output = align_timestamps(
         sync_h5_path=parser.args["sync_h5_path"],
