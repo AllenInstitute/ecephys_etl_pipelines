@@ -1,9 +1,7 @@
-from unittest import mock
-
 import pytest
 import numpy as np
 
-from allensdk.brain_observatory.ecephys.align_timestamps import channel_states as cs
+from ecephys_etl.modules.align_timestamps import channel_states as cs
 
 
 @pytest.mark.parametrize(
@@ -22,7 +20,9 @@ def test_extract_barcodes_from_states(
     sample_frequency, events, times, times_exp, codes_exp
 ):
 
-    times, codes = cs.extract_barcodes_from_states(events, times, sample_frequency)
+    times, codes = cs.extract_barcodes_from_states(
+        events, times, sample_frequency
+    )
 
     assert np.allclose(times, times_exp)
     assert np.allclose(codes, codes_exp)

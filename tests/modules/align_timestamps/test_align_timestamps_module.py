@@ -1,186 +1,133 @@
 import json
-import os
-import subprocess as sp
+from typing import List
+from pathlib import Path
 
 import pytest
 import numpy as np
 
-
-DATA_DIR = os.environ.get(
-    "ECEPHYS_PIPELINE_DATA",
-    os.path.join("/", "allen", "aibs", "informatics", "module_test_data", "ecephys"),
-)
+from ecephys_etl.modules.align_timestamps.__main__ import align_timestamps
 
 
-def apply_input_json_template(
-    template_path, input_json_path, temp_dir, data_dir=DATA_DIR
-):
-    """ A utility for adjusting the input json so that:
-        1. input paths find cached data in the data dir
-        2. output paths write to a specified temp_dir
-    The adjusted input json will be written to temp_dir.
+@pytest.fixture
+def align_timestamps_test_case_fixture(request, tmp_path) -> tuple:
+    """This fixture creates an input dict as would be parsed by argparse
+    for the align_timestamps module.
 
+    Test data is stored as a *.json file
+
+    Static test data for each test case is stored under
+    tests/resources/align_timestamps
     """
+    resource_dir = Path(__file__).resolve().parent.parent.parent / "resources"
+    align_timestamps_res_dir = resource_dir / "align_timestamps"
+    test_case_name = request.param["test_case_name"]
 
-    with open(template_path, "r") as input_json_file:
-        input_json_data = json.load(input_json_file)
+    test_dir = tmp_path / test_case_name
+    test_dir_expected = test_dir / "expected"
+    test_dir.mkdir()
+    test_dir_expected.mkdir()
 
-    input_json_data["sync_h5_path"] = os.path.join(
-        data_dir, input_json_data["sync_h5_path"]
+    test_case_json = (
+        align_timestamps_res_dir / test_case_name / f"{test_case_name}.json"
     )
+    with test_case_json.open('r') as f:
+        test_data = json.load(f)
 
-    for probe in input_json_data["probes"]:
+    input_probes = []
+    expected_aligned = []
+    for probe in test_data["probes"]:
+        test_input_probe = dict()
+        pname = probe["name"]
+        test_input_probe["name"] = pname
+        test_input_probe["sampling_rate"] = probe["sampling_rate"]
+        test_input_probe["lfp_sampling_rate"] = probe["sampling_rate"]
+        test_input_probe["start_index"] = 0
 
-        probe["barcode_channel_states_path"] = os.path.join(
-            data_dir, probe["barcode_channel_states_path"]
-        )
-        probe["barcode_timestamps_path"] = os.path.join(
-            data_dir, probe["barcode_timestamps_path"]
-        )
+        # Need to convert json test data into expected *.npy file inputs
+        barcode_timestamps = np.array(probe["barcode_timestamps"])
+        barcode_ts_path = test_dir / f"{pname}_barcode_timestamps.npy"
+        np.save(barcode_ts_path, barcode_timestamps)
+        test_input_probe["barcode_timestamps_path"] = barcode_ts_path
 
-        for timestamps_file in probe["mappable_timestamp_files"]:
-            timestamps_file["input_path"] = os.path.join(
-                data_dir, timestamps_file["input_path"]
-            )
-            timestamps_file["output_path"] = os.path.join(
-                temp_dir, timestamps_file["output_path"]
-            )
+        channel_states = np.array(probe["channel_states"])
+        channel_states_path = test_dir / f"{pname}_channel_states.npy"
+        np.save(channel_states_path, channel_states)
+        test_input_probe["barcode_channel_states_path"] = channel_states_path
 
-    with open(input_json_path, "w") as input_json_file:
-        json.dump(input_json_data, input_json_file)
+        raw_lfp_timestamps = np.array(probe["raw_lfp_timestamps"])
+        lfp_path = test_dir / f"{pname}_lfp_timestamps.npy"
+        np.save(lfp_path, raw_lfp_timestamps)
+        lfp_output_path = test_dir / f"{pname}_lfp_aligned.npy"
+        lfp_ts_entry = {
+            "name": "lfp_timestamps",
+            "input_path": str(lfp_path),
+            "output_path": str(lfp_output_path)
+        }
 
-
-@pytest.fixture()
-def align_timestamps_706875901_expected_params():
-    return {
-        "probeA": {
-            "total_time_shift": -0.6097051644554128,
-            "global_probe_sampling_rate": 29999.956819421783,
-            "global_probe_lfp_sampling_rate": 2499.9964016184817,
-        },
-        "probeB": {
-            "total_time_shift": -0.5875482733055364,
-            "global_probe_sampling_rate": 29999.90905329544,
-            "global_probe_lfp_sampling_rate": 2499.9924211079533,
-        },
-    }
-
-
-@pytest.fixture()
-def align_timestamps_706875901_expected_files():
-    return lambda data_dir: {
-        "probeA": {
-            "spikes_timestamps": os.path.join(
-                data_dir, "706875901_probeA_aligned_spike_timestamps.npy"
-            ),
-            "lfp_timestamps": os.path.join(
-                data_dir, "706875901_probeA_aligned_lfp_timestamps.npy"
-            ),
-        },
-        "probeB": {
-            "spikes_timestamps": os.path.join(
-                data_dir, "706875901_probeB_aligned_spike_timestamps.npy"
-            ),
-            "lfp_timestamps": os.path.join(
-                data_dir, "706875901_probeB_aligned_lfp_timestamps.npy"
-            ),
-        },
-    }
-
-
-@pytest.fixture(scope="module")
-def run_align_timestamps_706875901(tmpdir_factory):
-    base_path = tmpdir_factory.mktemp("align_timestamps_integration")
-    executable = ["python", "-m", "allensdk.brain_observatory.ecephys.align_timestamps"]
-
-    input_json_path = os.path.join(base_path, "706875901_align_timestamps_input.json")
-    output_json_path = os.path.join(base_path, "706875901_align_timestamps_output.json")
-    executable.extend(["--input_json", input_json_path])
-    executable.extend(["--output_json", output_json_path])
-
-    input_json_template_path = os.path.join(
-        DATA_DIR, "706875901_align_timestamps_input.json"
-    )
-    apply_input_json_template(input_json_template_path, input_json_path, base_path)
-
-    sp.check_call(executable)
-
-    return output_json_path
-
-
-@pytest.mark.requires_bamboo
-def test_align_timestamps_parameters_706875901(
-    run_align_timestamps_706875901, align_timestamps_706875901_expected_params
-):
-
-    with open(run_align_timestamps_706875901, "r") as output_json_file:
-        output_json_data = json.load(output_json_file)
-
-    for probe in output_json_data["probe_outputs"]:
-        expected = align_timestamps_706875901_expected_params[probe["name"]]
-
-        assert expected["total_time_shift"] == probe["total_time_shift"]
-        assert (
-            expected["global_probe_sampling_rate"]
-            == probe["global_probe_sampling_rate"]
-        )
-        assert (
-            expected["global_probe_lfp_sampling_rate"]
-            == probe["global_probe_lfp_sampling_rate"]
-        )
-
-
-@pytest.mark.requires_bamboo
-def test_align_timestamps_files_706875901(
-    run_align_timestamps_706875901, align_timestamps_706875901_expected_files
-):
-
-    with open(run_align_timestamps_706875901, "r") as output_json_file:
-        output_json_data = json.load(output_json_file)
-
-    expected_files = align_timestamps_706875901_expected_files(DATA_DIR)
-    for probe in output_json_data["probe_outputs"]:
-
-        for output_file_key, output_file_path in probe["output_paths"].items():
-            expected_file_path = expected_files[probe["name"]][output_file_key]
-            expected_data = np.load(expected_file_path, allow_pickle=False)
-
-            obtained_data = np.load(output_file_path, allow_pickle=False)
-
-            assert np.allclose(expected_data, obtained_data)
-
-
-@pytest.mark.requires_bamboo
-def test_align_timestamps_barcode_agreement_706875901(run_align_timestamps_706875901):
-
-    with open(run_align_timestamps_706875901, "r") as output_json_file:
-        output_json_data = json.load(output_json_file)
-
-    probe_parameters = {}
-    for probe in output_json_data["probe_outputs"]:
-        probe_parameters[probe["name"]] = probe
-
-    aligned_barcode_data = []
-    barcode_timestamp_lengths = []
-    for probe in output_json_data["input_parameters"]["probes"]:
-        name = probe["name"]
-        barcode_data = np.load(probe["barcode_timestamps_path"], allow_pickle=False)
-
-        total_time_shift = probe_parameters[name]["total_time_shift"]
-        global_probe_sampling_rate = probe_parameters[name][
-            "global_probe_sampling_rate"
+        raw_spike_timestamps = np.array(probe["raw_spike_timestamps"])
+        spikes_path = test_dir / f"{pname}_spike_timestamps.npy"
+        np.save(spikes_path, raw_spike_timestamps)
+        spikes_output_path = test_dir / f"{pname}_spikes_aligned.npy"
+        spikes_ts_entry = {
+            "name": "spikes_timestamps",
+            "input_path": str(spikes_path),
+            "output_path": str(spikes_output_path)
+        }
+        test_input_probe["mappable_timestamp_files"] = [
+            lfp_ts_entry, spikes_ts_entry
         ]
+        input_probes.append(test_input_probe)
 
-        aligned_barcode_data.append(
-            barcode_data / global_probe_sampling_rate - total_time_shift
-        )
-        barcode_timestamp_lengths.append(len(aligned_barcode_data))
+        # Convert json test data expected results to *.npy file outputs
+        expected_lfp_path = test_dir_expected / f"{pname}_lfp_expected.npy"
+        expected_lfp = np.array(probe["aligned_lfp_timestamps"])
+        np.save(expected_lfp_path, expected_lfp)
 
-    min_length = np.amin(barcode_timestamp_lengths)
-    assert min_length > 0
+        expected_spk_path = test_dir_expected / f"{pname}_spikes_expected.npy"
+        expected_spk = np.array(probe["aligned_spike_timestamps"])
+        np.save(expected_spk_path, expected_spk)
 
-    for ii in range(len(aligned_barcode_data) - 1):
-        assert np.allclose(
-            aligned_barcode_data[ii][:min_length],
-            aligned_barcode_data[ii + 1][:min_length],
-        )
+        expected_aligned.append({
+            "expected_aligned_lfp": str(expected_lfp_path),
+            "expected_aligned_spikes": str(expected_spk_path)
+        })
+
+    module_input = {
+        "sync_h5_path": str(
+            align_timestamps_res_dir
+            / test_case_name
+            / test_data["sync_file_fname"]
+        ),
+        "probes": input_probes
+    }
+
+    return module_input, expected_aligned
+
+
+@pytest.mark.parametrize("align_timestamps_test_case_fixture", [
+    {"test_case_name": "vcn_test_case_1"},
+    {"test_case_name": "vbn_test_case_1"}
+
+
+], indirect=["align_timestamps_test_case_fixture"])
+def test_align_timestamps(align_timestamps_test_case_fixture):
+    test_input, test_expected = align_timestamps_test_case_fixture
+
+    print(test_input)
+    print(test_expected)
+
+    probe_outputs: List[dict] = align_timestamps(
+        sync_h5_path=test_input["sync_h5_path"],
+        probes=test_input["probes"]
+    )["probe_outputs"]
+
+    for indx, obt in enumerate(probe_outputs):
+        exp_outputs = test_expected[indx]
+        exp_aligned_lfp = np.load(exp_outputs["expected_aligned_lfp"])
+        exp_aligned_spikes = np.load(exp_outputs["expected_aligned_spikes"])
+
+        obt_aligned_lfp = np.load(obt["output_paths"]["lfp_timestamps"])
+        obt_aligned_spikes = np.load(obt["output_paths"]["spikes_timestamps"])
+
+        assert np.allclose(exp_aligned_lfp, obt_aligned_lfp)
+        assert np.allclose(exp_aligned_spikes, obt_aligned_spikes)

@@ -1,11 +1,8 @@
-from unittest import mock
-
 import pytest
 import numpy as np
 
-
-from allensdk.brain_observatory.ecephys.align_timestamps.probe_synchronizer import (
-    ProbeSynchronizer,
+from ecephys_etl.modules.align_timestamps.probe_synchronizer import (
+    ProbeSynchronizer
 )
 
 
@@ -39,7 +36,8 @@ def synchronizer():
     mbt, mb, pbt, pb, min_time, max_time = get_test_barcodes()
 
     result = ProbeSynchronizer.compute(
-        mbt, mb, pbt, pb, min_time, max_time, probe_start_index, local_sampling_rate
+        mbt, mb, pbt, pb, min_time, max_time,
+        probe_start_index, local_sampling_rate
     )
 
     return result
@@ -53,7 +51,11 @@ def synchronizer():
             "master",
             np.arange(10, dtype="float") / 2.0 - 2,
         ],
-        [np.arange(10, dtype="float"), "probe", np.arange(10, dtype="float") / 4.0],
+        [
+            np.arange(10, dtype="float"),
+            "probe",
+            np.arange(10, dtype="float") / 4.0
+        ],
         [
             np.arange(10, dtype="float"),
             "salmon",

@@ -1,8 +1,7 @@
 import pytest
 import numpy as np
-import pandas as pd
 
-import allensdk.brain_observatory.ecephys.align_timestamps.barcode as barcode
+from ecephys_etl.modules.align_timestamps import barcode
 
 
 @pytest.fixture
@@ -44,7 +43,9 @@ def test_extract_barcodes_from_times(two_barcodes):
 @pytest.mark.parametrize("sind", [0])  # , 0, -5, 4.3])
 @pytest.mark.parametrize("prate", [10])  # , 1, -7, 0.1])
 @pytest.mark.parametrize("npcodes", [-1])  # , 3])
-def test_get_time_offset(sc, tr, sind, prate, npcodes, master_barcodes_sequence):
+def test_get_time_offset(
+    sc, tr, sind, prate, npcodes, master_barcodes_sequence
+):
 
     master_times, master_barcodes = master_barcodes_sequence
     probe_times = (master_times[:npcodes] + tr) * sc
