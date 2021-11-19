@@ -758,6 +758,19 @@ class Dataset(object):
                          all_vsyncs,
                          photodiode_cycle
                          ):
+        """
+        Plots the photodiode times with the vsyncs
+        and marks each photodiode cycle.
+
+        Parameters
+            ----------
+            photodiode_times : List[Float]
+                A list of photodiode times
+            all_vsyncs : List[Float]
+                A list of vsyncs times
+            photodiode_cycle : int
+                Number of vsyncs in a cycle
+        """
 
         import matplotlib.pyplot as plt
 

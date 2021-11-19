@@ -148,6 +148,10 @@ def get_frame_offsets(
     List[float]
         List of the inferred start frames for each stimuli category presented
         during session.
+    List[float]
+        times the stimulus starts
+    List[float]
+        times of the stimulus ends
     """
     frame_count_arr = np.array(frame_counts)
     tolerance_pct = tolerance / 100.
@@ -277,6 +281,19 @@ def determine_behavior_stimulus_properties(
 
 
 def estimate_frame_duration(pd_times, cycle=60):
+    """Given a list of photodiode times, estimate the frame duration
+
+    Parameters
+    ----------
+    pd_times : np.ndarray
+       A list of photodiode times
+    cycle : int
+        Number of frames in a cycle
+
+    Returns
+    -------
+    Float
+    """
     return trimmed_stats(np.diff(pd_times))[0] / cycle
 
 
@@ -300,6 +317,10 @@ def generate_behavior_stim_table(
     sync_dataset : Dataset
         A sync Datset object that allows pythonic access of *.sync file data
         containing global timing information for events and presented stimuli.
+    stim_start : float
+        The stimulus start time
+    stim_end : float
+        The stimulus end time
     frame_offset : int, optional
         Used to give correct 'start_frame' and 'end_frame' values when
         combining with DataFrames from other portions of a VBN session
@@ -308,6 +329,8 @@ def generate_behavior_stim_table(
         Used to give correct 'stimulus_block' values when combining with
         DataFrames from other portions of a VBN session
         (e.g. behavior, mapping, replay), by default 0
+    photodiode_cycle : int, optional
+        number of frames in a cycle
 
     Returns
     -------
@@ -505,6 +528,15 @@ def check_behavior_and_replay_pkl_match(
 
 
 def trim_border_pulses(pd_times, vs_times, frame_interval=1/60, num_frames=3):
+    """Trim the border pulses
+    Parameters
+    ----------
+    pd_times : np.ndarray
+        A list of the photodiode times
+    vs_times : np.ndarray
+        A list of the vsync times
+    """
+
     pd_times = np.array(pd_times)
     pd_times = pd_times[np.logical_and(
         pd_times >= vs_times[0],
@@ -515,7 +547,12 @@ def trim_border_pulses(pd_times, vs_times, frame_interval=1/60, num_frames=3):
 
 
 def correct_on_off_effects(pd_times):
-    """
+    """Correct for the on/off effects
+    Parameters
+    ----------
+    pd_times : np.ndarray
+        A list of the photodiode times
+
     Notes
     -----
     This cannot (without additional info) determine whether an assymmetric
@@ -540,6 +577,13 @@ def correct_on_off_effects(pd_times):
 
 
 def fix_unexpected_edges(pd_times, ndevs=10, cycle=60, max_frame_offset=4):
+    """Fix the unexpected edges
+    Parameters
+    ----------
+    pd_times : np.ndarray
+        A list of the photodiode times
+    """
+
     pd_times = np.array(pd_times)
     expected_duration_mask = flag_unexpected_edges(pd_times, ndevs=ndevs)
     diff_mean, diff_std = trimmed_stats(np.diff(pd_times))
@@ -583,6 +627,7 @@ def fix_unexpected_edges(pd_times, ndevs=10, cycle=60, max_frame_offset=4):
 
 
 def trimmed_stats(data, pctiles=(10, 90)):
+    """Trim the stats"""
     low = np.percentile(data, pctiles[0])
     high = np.percentile(data, pctiles[1])
 
@@ -595,6 +640,12 @@ def trimmed_stats(data, pctiles=(10, 90)):
 
 
 def flag_unexpected_edges(pd_times, ndevs=10):
+    """Flag the unexpected edges
+    Parameters
+    ----------
+    pd_times : np.ndarray
+        A list of the photodiode times
+    """
     pd_diff = np.diff(pd_times)
     diff_mean, diff_std = trimmed_stats(pd_diff)
 
@@ -616,8 +667,26 @@ def flag_unexpected_edges(pd_times, ndevs=10):
 def partition_photodiode_times(
         sync_dataset,
         partitioned_vsync_times,
-        stim_start, stim_end
+        stim_start,
+        stim_end
 ):
+    """
+    This method partitions the phoitodiode times given the
+    stim start and ends times. It also corrects for the signal for
+    various undesired effects
+
+    Parameters
+    ----------
+    sync_dataset : Dataset
+        A sync Datset object that allows pythonic access of *.sync file data
+        containing global timing information for events and presented stimuli.
+    partitioned_vsync_times : np.ndarray
+        A list of the vsync times
+    stim_start : float
+        The start time of the stimulus
+    stim_end : float
+        The end time of the stimulus
+    """
 
     photodiode_times = sync_dataset.get_edges('all', [4], units='seconds')
 
@@ -646,6 +715,21 @@ def set_corrected_times(
     start_time,
     corrected_relevant_vsyncs
 ):
+    """
+    This method copies the corrected_relevant_vsyncs
+    over to the corrected_frame_times
+
+    Parameters
+    ----------
+    corrected_frame_times : np.ndarray
+        The corrected frames
+    vsync_slice : Slice
+        The interval to insert the new frames
+    stim_start : float
+        The start time of the stimulus
+    corrected_relevant_vsyncs : np.ndarray
+        The full list of corrected frames
+    """
 
     if vsync_slice.stop < len(corrected_frame_times):
         corrected_frame_times[
@@ -669,7 +753,6 @@ def compute_vbn_block_frame_times(
     expected_vsync_duration: float,
     num_vsyncs_per_diode_toggle: int = 60
 ) -> np.ndarray:
-
     num_vsyncs = len(partitioned_vsync_times)
     corrected_frame_times = np.zeros(num_vsyncs, dtype=float)
     vsync_durations = np.diff(partitioned_vsync_times)
@@ -842,6 +925,10 @@ def generate_replay_stim_table(
     sync_dataset : Dataset
         A sync Datset object that allows pythonic access of *.sync file data
         containing global timing information for events and presented stimuli.
+    stim_start : float
+        The stimulus start time
+    stim_end : float
+        The stimulus end time
     behavior_stim_table : pd.DataFrame
         A behavior stimulus table created by the generate_behavior_stim_table()
         function.
@@ -853,6 +940,8 @@ def generate_replay_stim_table(
         Used to give correct 'start_frame' and 'end_frame' values when
         combining with DataFrames from other portions of a VBN session
         (e.g. behavior, mapping, replay), by default 0
+    photodiode_cycle : int, optional
+        number of frames in a cycle
 
     Returns
     -------
@@ -941,6 +1030,10 @@ def generate_mapping_stim_table(
     sync_dataset : Dataset
         A sync Datset object that allows pythonic access of *.sync file data
         containing global timing information for events and presented stimuli.
+    stim_start : float
+        The stimulus start time
+    stim_end : float
+        The stimulus end time
     frame_offset : int, optional
         Used to give correct 'start_frame' and 'end_frame' values when
         combining with DataFrames from other portions of a VBN session
