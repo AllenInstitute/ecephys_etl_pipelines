@@ -754,19 +754,22 @@ class Dataset(object):
             plt.show()
 
     def plot_monitor_lag(self,
-                        photodiode_times, 
-                        all_vsyncs,
-                        photodiode_cycle
-                        ):
+                         photodiode_times,
+                         all_vsyncs,
+                         photodiode_cycle
+                         ):
 
         import matplotlib.pyplot as plt
-    
-        stim_diode_vsyncs = all_vsyncs[::photodiode_cycle]
 
         updated_stim_diode_vsyncs = all_vsyncs[::photodiode_cycle]
 
         plt.plot(all_vsyncs, np.zeros(len(all_vsyncs)), '|')
-        plt.plot(updated_stim_diode_vsyncs, np.zeros(len(updated_stim_diode_vsyncs)), '|', ms=20)
+        plt.plot(
+            updated_stim_diode_vsyncs,
+            np.zeros(len(updated_stim_diode_vsyncs)),
+            '|',
+            ms=20
+        )
         plt.plot(photodiode_times, np.zeros(len(photodiode_times)), '|', ms=30)
 
         plt.legend(['vsyncs', 'vsyncs-diode', 'diode'])

@@ -4,7 +4,7 @@ import logging
 
 import numpy as np
 import pandas as pd
-import scipy
+import scipy.spatial.distance as distance
 
 from ecephys_etl.data_extractors.sync_dataset import Dataset
 from ecephys_etl.data_extractors.stim_file import (
@@ -20,8 +20,6 @@ from ecephys_etl.modules.vcn_create_stimulus_table.ephys_pre_spikes import (
 from ecephys_etl.data_transformers.visual_behavior_stimulus_processing import (
     get_stimulus_presentations
 )
-
-from ecephys_etl.data_transformers import stimulus_sync
 
 
 def get_vsyncs(
@@ -277,6 +275,7 @@ def determine_behavior_stimulus_properties(
         "rewarded": rewarded
     }
 
+
 def estimate_frame_duration(pd_times, cycle=60):
     return trimmed_stats(np.diff(pd_times))[0] / cycle
 
@@ -288,7 +287,7 @@ def generate_behavior_stim_table(
     stim_end: float,
     frame_offset: int = 0,
     block_offset: int = 0,
-    photodiode_cycle = 60
+    photodiode_cycle: int = 60
 ) -> pd.DataFrame:
     """Generate a stimulus table for the behavior portion of a visual behavior
     neuropixels session.
@@ -348,15 +347,32 @@ def generate_behavior_stim_table(
 
     frame_timestamps = get_vsyncs(sync_dataset)
 
-    partitioned_vsync_times = frame_timestamps[frame_offset:frame_offset + num_frames]
-    partitioned_photodiode_times = partition_photodiode_times(sync_dataset, partitioned_vsync_times, stim_start, stim_end)
+    partitioned_vsync_times = frame_timestamps[
+        frame_offset:frame_offset + num_frames
+    ]
 
-    expected_vsync_duration = estimate_frame_duration(partitioned_photodiode_times, cycle=photodiode_cycle)
+    partitioned_photodiode_times = partition_photodiode_times(
+        sync_dataset,
+        partitioned_vsync_times,
+        stim_start, stim_end
+    )
 
-    frame_timestamps = compute_vbn_block_frame_times(partitioned_vsync_times, partitioned_photodiode_times, expected_vsync_duration, photodiode_cycle)
+    expected_vsync_duration = estimate_frame_duration(
+        partitioned_photodiode_times, cycle=photodiode_cycle
+    )
 
-    #uncomment to plot 
-    # sync_dataset.plot_monitor_lag(partitioned_photodiode_times, frame_timestamps, photodiode_cycle)
+    frame_timestamps = compute_vbn_block_frame_times(
+        partitioned_vsync_times,
+        partitioned_photodiode_times,
+        expected_vsync_duration,
+        photodiode_cycle
+    )
+
+    # sync_dataset.plot_monitor_lag(
+    #     partitioned_photodiode_times,
+    #     frame_timestamps,
+    #     photodiode_cycle
+    # )
 
     reward_times = frame_timestamps[reward_frames.astype(int)]
     epoch_timestamps = frame_timestamps[frame_offset:frame_offset + num_frames]
@@ -487,18 +503,16 @@ def check_behavior_and_replay_pkl_match(
         f"replay pickle ({obtained_num_images}!"
     )
 
+
 def trim_border_pulses(pd_times, vs_times, frame_interval=1/60, num_frames=3):
     pd_times = np.array(pd_times)
     pd_times = pd_times[np.logical_and(
         pd_times >= vs_times[0],
         pd_times <= vs_times[-1] + num_frames * frame_interval
     )]
-    
-    # print('last photodiode transition {}'.format(pd_times[-1]))
-    # print('last vsyncs time plus buffer {}'.format(vs_times[-1] + num_frames * frame_interval))
-    # print('num expected diode transitions {}'.format(np.floor(len(vs_times)/60)+1))
-    # print('num actual diode transitions {}'.format(len(pd_times)))
+
     return pd_times
+
 
 def correct_on_off_effects(pd_times):
     """
@@ -524,6 +538,7 @@ def correct_on_off_effects(pd_times):
 
     return pd_times
 
+
 def fix_unexpected_edges(pd_times, ndevs=10, cycle=60, max_frame_offset=4):
     pd_times = np.array(pd_times)
     expected_duration_mask = flag_unexpected_edges(pd_times, ndevs=ndevs)
@@ -547,7 +562,7 @@ def fix_unexpected_edges(pd_times, ndevs=10, cycle=60, max_frame_offset=4):
         edges_missing = int(np.around((high_bound - low_bound) / diff_mean))
         expected = np.linspace(low_bound, high_bound, edges_missing + 1)
 
-        distances = scipy.spatial.distance.cdist(
+        distances = distance.cdist(
             current_bad_edges[:, None], expected[:, None]
         )
         distances = np.around(distances / frame_interval).astype(int)
@@ -566,6 +581,7 @@ def fix_unexpected_edges(pd_times, ndevs=10, cycle=60, max_frame_offset=4):
         np.concatenate([output_edges, pd_times[expected_duration_mask > 0]])
     )
 
+
 def trimmed_stats(data, pctiles=(10, 90)):
     low = np.percentile(data, pctiles[0])
     high = np.percentile(data, pctiles[1])
@@ -575,7 +591,8 @@ def trimmed_stats(data, pctiles=(10, 90)):
         data >= low
     )]
 
-    return np.mean(trimmed), np.std(trimmed)   
+    return np.mean(trimmed), np.std(trimmed)
+
 
 def flag_unexpected_edges(pd_times, ndevs=10):
     pd_diff = np.diff(pd_times)
@@ -596,12 +613,17 @@ def flag_unexpected_edges(pd_times, ndevs=10):
     return expected_duration_mask
 
 
+def partition_photodiode_times(
+        sync_dataset,
+        partitioned_vsync_times,
+        stim_start, stim_end
+):
 
-
-def partition_photodiode_times(sync_dataset, partitioned_vsync_times, stim_start, stim_end):
     photodiode_times = sync_dataset.get_edges('all', [4], units='seconds')
 
-    photodiode_times = photodiode_times[(photodiode_times >= stim_start) & (photodiode_times <= stim_end)]
+    photodiode_times = photodiode_times[
+        (photodiode_times >= stim_start) & (photodiode_times <= stim_end)
+    ]
 
     photodiode_times = trim_border_pulses(
         photodiode_times, partitioned_vsync_times
@@ -617,34 +639,53 @@ def partition_photodiode_times(sync_dataset, partitioned_vsync_times, stim_start
 
     return photodiode_times
 
-def set_corrected_times(corrected_frame_times, vsync_slice, start_time, corrected_relevant_vsyncs):
+
+def set_corrected_times(
+    corrected_frame_times,
+    vsync_slice,
+    start_time,
+    corrected_relevant_vsyncs
+):
 
     if vsync_slice.stop < len(corrected_frame_times):
-        corrected_frame_times[vsync_slice] = start_time + corrected_relevant_vsyncs
+        corrected_frame_times[
+            vsync_slice
+        ] = start_time + corrected_relevant_vsyncs
     else:
-        #TODO - is this correct? The lengths and shapes do not always line up
-        corrected_frame_times[vsync_slice.start : len(corrected_frame_times)] = start_time + corrected_relevant_vsyncs[0:len(corrected_frame_times) - vsync_slice.start]
+        # TODO - is this correct? The lengths and shapes do not always line up
+
+        corrected_frame_times[
+            vsync_slice.start:
+            len(corrected_frame_times)
+        ] = start_time + corrected_relevant_vsyncs[
+            0:
+            len(corrected_frame_times) - vsync_slice.start
+        ]
+
 
 def compute_vbn_block_frame_times(
-        partitioned_vsync_times: np.ndarray,
-        partitioned_photodiode_times: np.ndarray,
-        expected_vsync_duration,
-        num_vsyncs_per_diode_toggle: int = 60
-    ) -> np.ndarray:
- 
+    partitioned_vsync_times: np.ndarray,
+    partitioned_photodiode_times: np.ndarray,
+    expected_vsync_duration: float,
+    num_vsyncs_per_diode_toggle: int = 60
+) -> np.ndarray:
+
     num_vsyncs = len(partitioned_vsync_times)
     corrected_frame_times = np.zeros(num_vsyncs, dtype=float)
     vsync_durations = np.diff(partitioned_vsync_times)
 
     cycle = num_vsyncs_per_diode_toggle
- 
-    pd_intervals = zip(partitioned_photodiode_times[:-1], partitioned_photodiode_times[1:])
+
+    pd_intervals = zip(
+        partitioned_photodiode_times[:-1],
+        partitioned_photodiode_times[1:]
+    )
 
     for pd_interval_ind, (start_time, end_time) in enumerate(pd_intervals):
- 
+
         # Get duration of the current on->off/off->on photodiode interval
         pd_interval_duration = end_time - start_time
- 
+
         # Get only vsync event times and vsync interval durations
         # associated with current photodiode on/off interval
         vsync_slice = slice(
@@ -653,51 +694,93 @@ def compute_vbn_block_frame_times(
         )
         relevant_vsyncs = partitioned_vsync_times[vsync_slice]
         relevant_vsync_durations = vsync_durations[vsync_slice]
- 
-        # Determine number of "long" vsyncs (vsyncs that are double the duration of normal vsyncs)
-        expected_pd_interval_duration = num_vsyncs_per_diode_toggle * expected_vsync_duration
-        excess_pd_interval_duration = np.sum(relevant_vsync_durations) - expected_pd_interval_duration
+
+        # Determine number of "long" vsyncs
+        # (vsyncs that are double the duration of normal vsyncs)
+        expected_pd_interval_duration = (
+            num_vsyncs_per_diode_toggle * expected_vsync_duration
+        )
+
+        excess_pd_interval_duration = (
+            np.sum(relevant_vsync_durations) - expected_pd_interval_duration
+        )
+
         # We should only be long by multiples of vsync duration
-        num_long_vsyncs = int(np.around(excess_pd_interval_duration / expected_vsync_duration))
- 
-        # Determine total delay (sum of all sources of delay) in units of 'vsyncs'
+        num_long_vsyncs = int(
+            np.around(
+                excess_pd_interval_duration / expected_vsync_duration
+            )
+        )
+
+        # Determine total delay (sum of all sources of delay)
+        # in units of 'vsyncs'
         # Total delay changes can only happen in whole 'vsyncs',
         # never in fractions of 'vsyncs' (hence rounding)
         total_delay = (
-            int(np.around((pd_interval_duration / expected_vsync_duration))) - num_vsyncs_per_diode_toggle
-        )      
- 
+            int(
+                np.around(
+                    (pd_interval_duration / expected_vsync_duration)
+                )
+            ) - num_vsyncs_per_diode_toggle
+        )
+
         # If our total_delay is more than we would expect from just long vsyncs
         # then extra frame to monitor delay occurred
         extra_frame_to_monitor_delay = 0
 
         if total_delay > num_long_vsyncs:
-            print('Extra delay between frame time and monitor display time detected')
+            print(
+                """Extra delay between frame time
+                 and monitor display time detected"""
+            )
+
             # Delay attributed to hardware/software factors that delay time
             # to monitor display (in units of 'vsyncs') must then be:
             extra_frame_to_monitor_delay = total_delay - num_long_vsyncs
- 
-        # Number of actual frames/vsyncs that would fit in a photodiode switch interval
-        local_expected_vsync_duration = pd_interval_duration / (num_vsyncs_per_diode_toggle + total_delay)
+
+        # Number of actual frames/vsyncs that would fit
+        # in a photodiode switch interval
+        local_expected_vsync_duration = (
+            pd_interval_duration / (num_vsyncs_per_diode_toggle + total_delay)
+        )
+
         if total_delay > 0:
             # Correct for variability in vsync times
-            variance_reduced_frame_diffs = np.round(np.diff(relevant_vsyncs) / local_expected_vsync_duration)
+            variance_reduced_frame_diffs = (
+                np.round(
+                    np.diff(relevant_vsyncs) / local_expected_vsync_duration
+                )
+            )
+
             # NJM - Want first vsync to happen at diode transition
-            # NJM - Is the 0th vsync happening before or after first photodiode transition? There could be 1-off error (double check)
+            # NJM - Is the 0th vsync happening before or after first
+            # photodiode transition? There could be 1-off error (double check)
             # Will need to check empirically when implementing
+            result = (
+                variance_reduced_frame_diffs * local_expected_vsync_duration
+            )
+
             corrected_relevant_vsyncs = np.insert(
-                np.cumsum(variance_reduced_frame_diffs * local_expected_vsync_duration),
+                np.cumsum(result),
                 0,
                 0
             )
-            
-            # Then correct for extra_frame_to_monitor_delay if there was any
-            # Assume that if there was a change in monitor lag, it was after the long frame
-            longest_ind = np.argmax(relevant_vsync_durations) + 1
-            corrected_relevant_vsyncs[longest_ind:] += extra_frame_to_monitor_delay * local_expected_vsync_duration
 
-            set_corrected_times(corrected_frame_times, vsync_slice, start_time, corrected_relevant_vsyncs)
-            
+            # Then correct for extra_frame_to_monitor_delay if there was any
+            # Assume that if there was a change
+            # in monitor lag, it was after the long frame
+            longest_ind = np.argmax(relevant_vsync_durations) + 1
+            corrected_relevant_vsyncs[longest_ind:] += (
+                extra_frame_to_monitor_delay * local_expected_vsync_duration
+            )
+
+            set_corrected_times(
+                corrected_frame_times,
+                vsync_slice,
+                start_time,
+                corrected_relevant_vsyncs
+            )
+
         else:
 
             frame_diffs = np.ones(cycle-1)
@@ -707,10 +790,13 @@ def compute_vbn_block_frame_times(
                 0
             )
 
-            set_corrected_times(corrected_frame_times, vsync_slice, start_time, corrected_relevant_vsyncs)
-        
-        # starts[start_index * cycle: (start_index + 1) * cycle] = corrected_relevant_vsyncs + start_time
- 
+            set_corrected_times(
+                corrected_frame_times,
+                vsync_slice,
+                start_time,
+                corrected_relevant_vsyncs
+            )
+
     # Now deal with leftover vsyncs that occur after the last diode transition
     # Just take the global frame duration for these
     leftover_vsyncs_start_ind = (
@@ -722,11 +808,18 @@ def compute_vbn_block_frame_times(
         np.diff(relevant_vsyncs) / expected_vsync_duration
     )
 
-    corrected_relevant_vsyncs = np.insert(np.cumsum(frame_diffs * expected_vsync_duration), 0, 0)
+    corrected_relevant_vsyncs = np.insert(
+        np.cumsum(frame_diffs * expected_vsync_duration),
+        0,
+        0
+    )
 
-    corrected_frame_times[leftover_vsyncs_start_ind:] = partitioned_photodiode_times[-1] + corrected_relevant_vsyncs
- 
+    corrected_frame_times[leftover_vsyncs_start_ind:] = (
+        partitioned_photodiode_times[-1] + corrected_relevant_vsyncs
+    )
+
     return corrected_frame_times
+
 
 def generate_replay_stim_table(
     replay_pkl: ReplayPickleFile,
@@ -736,7 +829,7 @@ def generate_replay_stim_table(
     behavior_stim_table: pd.DataFrame,
     block_offset: int = 5,
     frame_offset: int = 0,
-    photodiode_cycle = 60
+    photodiode_cycle: int = 60
 ) -> pd.DataFrame:
     """Generate a stimulus table for the replay portion of a visual behavior
     neuropixels session.
@@ -771,14 +864,34 @@ def generate_replay_stim_table(
     num_frames = replay_pkl.num_frames
     frame_timestamps = get_vsyncs(sync_dataset)
 
-    partitioned_vsync_times = frame_timestamps[frame_offset:frame_offset + num_frames]
-    partitioned_photodiode_times = partition_photodiode_times(sync_dataset, partitioned_vsync_times, stim_start, stim_end)
+    partitioned_vsync_times = (
+        frame_timestamps[frame_offset:frame_offset + num_frames]
+    )
 
-    expected_vsync_duration = estimate_frame_duration(partitioned_photodiode_times, cycle=photodiode_cycle)
-    frame_timestamps = compute_vbn_block_frame_times(partitioned_vsync_times, partitioned_photodiode_times, expected_vsync_duration, photodiode_cycle)
+    partitioned_photodiode_times = partition_photodiode_times(
+        sync_dataset,
+        partitioned_vsync_times,
+        stim_start,
+        stim_end
+    )
 
-    #uncomment to plot 
-    # sync_dataset.plot_monitor_lag(partitioned_photodiode_times, frame_timestamps, photodiode_cycle)
+    expected_vsync_duration = estimate_frame_duration(
+        partitioned_photodiode_times,
+        cycle=photodiode_cycle
+    )
+
+    frame_timestamps = compute_vbn_block_frame_times(
+        partitioned_vsync_times,
+        partitioned_photodiode_times,
+        expected_vsync_duration,
+        photodiode_cycle
+    )
+
+    # sync_dataset.plot_monitor_lag(
+    #     partitioned_photodiode_times,
+    #     frame_timestamps,
+    #     photodiode_cycle
+    # )
 
     check_behavior_and_replay_pkl_match(
         replay_pkl=replay_pkl, behavior_stim_table=behavior_stim_table
@@ -815,7 +928,7 @@ def generate_mapping_stim_table(
     stim_end: float,
     frame_offset: int = 0,
     block_offset: int = 1,
-    photodiode_cycle = 60
+    photodiode_cycle: int = 60
 ) -> pd.DataFrame:
     """Generate a stimulus table for the mapping portion of a visual behavior
     neuropixels session.
@@ -894,15 +1007,34 @@ def generate_mapping_stim_table(
 
     num_frames = mapping_pkl.num_frames
 
-    partitioned_vsync_times = frame_timestamps[frame_offset:frame_offset + num_frames]
-    partitioned_photodiode_times = partition_photodiode_times(sync_dataset, partitioned_vsync_times, stim_start, stim_end)
+    partitioned_vsync_times = (
+        frame_timestamps[frame_offset:frame_offset + num_frames]
+    )
 
-    expected_vsync_duration = estimate_frame_duration(partitioned_photodiode_times, cycle=photodiode_cycle)
+    partitioned_photodiode_times = partition_photodiode_times(
+        sync_dataset,
+        partitioned_vsync_times,
+        stim_start,
+        stim_end
+    )
 
-    frame_timestamps = compute_vbn_block_frame_times(partitioned_vsync_times, partitioned_photodiode_times, expected_vsync_duration, photodiode_cycle)
+    expected_vsync_duration = estimate_frame_duration(
+        partitioned_photodiode_times,
+        cycle=photodiode_cycle
+    )
 
-    #uncomment to plot 
-    # sync_dataset.plot_monitor_lag(partitioned_photodiode_times, frame_timestamps, photodiode_cycle)
+    frame_timestamps = compute_vbn_block_frame_times(
+        partitioned_vsync_times,
+        partitioned_photodiode_times,
+        expected_vsync_duration,
+        photodiode_cycle
+    )
+
+    # sync_dataset.plot_monitor_lag(
+    #     partitioned_photodiode_times,
+    #     frame_timestamps,
+    #     photodiode_cycle
+    # )
 
     stim_df = stim_df.rename(
         columns={
@@ -947,8 +1079,14 @@ def generate_mapping_stim_table(
     # Now fill in other columns
     stim_df['start_frame'] = stim_df['start_frame'].astype(int) + frame_offset
     stim_df['end_frame'] = stim_df['end_frame'].astype(int) + frame_offset
-    stim_df['start_time'] = frame_timestamps[stim_df['start_frame'] - frame_offset]
-    stim_df['stop_time'] = frame_timestamps[stim_df['end_frame'] - frame_offset]
+    stim_df['start_time'] = (
+        frame_timestamps[stim_df['start_frame'] - frame_offset]
+    )
+
+    stim_df['stop_time'] = (
+        frame_timestamps[stim_df['end_frame'] - frame_offset]
+    )
+
     stim_df['duration'] = stim_df['stop_time'] - stim_df['start_time']
     stim_df['active'] = False
 
@@ -1011,17 +1149,31 @@ def create_vbn_stimulus_table(
         pkl.num_frames for pkl in (behavior_pkl, mapping_pkl, replay_pkl)
     ]
 
-    frame_offsets, stim_starts, stim_ends = get_frame_offsets(sync_dataset, frame_counts)
+    frame_offsets, stim_starts, stim_ends = (
+        get_frame_offsets(sync_dataset, frame_counts)
+    )
 
     # Generate stim tables for the 3 different stimulus pkl types
     behavior_df = generate_behavior_stim_table(
-        behavior_pkl, sync_dataset, stim_starts[0], stim_ends[0], frame_offset=frame_offsets[0]
+        behavior_pkl,
+        sync_dataset,
+        stim_starts[0],
+        stim_ends[0],
+        frame_offset=frame_offsets[0]
     )
     mapping_df = generate_mapping_stim_table(
-        mapping_pkl, sync_dataset, stim_starts[1], stim_ends[1], frame_offset=frame_offsets[1]
+        mapping_pkl,
+        sync_dataset,
+        stim_starts[1],
+        stim_ends[1],
+        frame_offset=frame_offsets[1]
     )
     replay_df = generate_replay_stim_table(
-        replay_pkl, sync_dataset, stim_starts[2], stim_ends[2], behavior_df,
+        replay_pkl,
+        sync_dataset,
+        stim_starts[2],
+        stim_ends[2],
+        behavior_df,
         frame_offset=frame_offsets[2]
     )
 
