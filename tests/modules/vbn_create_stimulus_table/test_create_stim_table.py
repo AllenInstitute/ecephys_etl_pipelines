@@ -358,9 +358,6 @@ def mock_sync_dataset_fixture(request):
     ],
     indirect=["mock_sync_dataset_fixture"]
 )
-
-# TODO fix this test
-
 # def test_get_frame_offsets(
 #     caplog, mock_sync_dataset_fixture, frame_counts, tolerance,
 #     expected, warning, raises
@@ -378,13 +375,11 @@ def mock_sync_dataset_fixture(request):
 #             frame_counts=frame_counts,
 #             tolerance=tolerance
 #         )
-
+#
 #         if warning:
 #             assert warning in caplog.text
-
+#
 #         assert np.allclose(expected, obt)
-
-
 @pytest.mark.parametrize(
     "raw_behavior_stimulus_df, reward_times, expected",
     [
