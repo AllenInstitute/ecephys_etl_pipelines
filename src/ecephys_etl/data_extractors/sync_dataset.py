@@ -753,6 +753,46 @@ class Dataset(object):
         if auto_show:
             plt.show()
 
+    def plot_monitor_lag(self,
+                         photodiode_times,
+                         all_vsyncs,
+                         photodiode_cycle
+                         ):
+        """
+        Plots the photodiode times with the vsyncs
+        and marks each photodiode cycle.
+
+        Parameters
+            ----------
+            photodiode_times : List[Float]
+                A list of photodiode times
+            all_vsyncs : List[Float]
+                A list of vsyncs times
+            photodiode_cycle : int
+                Number of vsyncs in a cycle
+        """
+
+        import matplotlib.pyplot as plt
+
+        updated_stim_diode_vsyncs = all_vsyncs[::photodiode_cycle]
+
+        plt.plot(all_vsyncs, np.zeros(len(all_vsyncs)), '|')
+        plt.plot(
+            updated_stim_diode_vsyncs,
+            np.zeros(len(updated_stim_diode_vsyncs)),
+            '|',
+            ms=20
+        )
+        plt.plot(photodiode_times, np.zeros(len(photodiode_times)), '|', ms=30)
+
+        plt.legend(['vsyncs', 'vsyncs-diode', 'diode'])
+
+        current = plt.gca()
+        current.axes.yaxis.set_ticklabels([])
+        current.set_ylim([-1, 1])
+
+        plt.show()
+
     def plot_lines(self,
                    lines,
                    start_time=0.0,

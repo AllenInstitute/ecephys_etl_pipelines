@@ -20,7 +20,7 @@ RUN mkdir ${CONDA_ENVS}
 # https://pythonspeed.com/articles/activate-conda-dockerfile/
 
 WORKDIR /repos
-RUN apt-get -y update \
+RUN apt-get -y update --allow-releaseinfo-change \
     && rm -rf /var/lib/apt/* \
     && echo "Using branch ${ECEPHYS_ETL_TAG}"\
     && git clone -b ${ECEPHYS_ETL_TAG} https://github.com/AllenInstitute/ecephys_etl_pipelines ./ecephys_etl \
