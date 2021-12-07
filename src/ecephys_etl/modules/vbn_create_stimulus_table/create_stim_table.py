@@ -68,6 +68,13 @@ def get_vsyncs(
 
     falling_edges = sync_dataset.get_falling_edges(vsync_line, units='seconds')
 
+    first_rising_edge = sync_dataset.get_rising_edges(
+        vsync_line, units='seconds'
+    )[0]
+
+    # return only the falling edges that are preceded by rising edges
+    falling_edges = falling_edges[(falling_edges > first_rising_edge)]
+
     return falling_edges
 
 
@@ -883,9 +890,9 @@ def compute_vbn_block_frame_times(
     # Now deal with leftover vsyncs that occur after the last diode transition
     # Just take the global frame duration for these
     leftover_vsyncs_start_ind = (
-        len(partitioned_vsync_times)
-        - np.mod(len(partitioned_vsync_times), num_vsyncs_per_diode_toggle)
+        (len(partitioned_photodiode_times) - 1) * num_vsyncs_per_diode_toggle
     )
+
     relevant_vsyncs = partitioned_vsync_times[leftover_vsyncs_start_ind:]
     frame_diffs = np.round(
         np.diff(relevant_vsyncs) / expected_vsync_duration
