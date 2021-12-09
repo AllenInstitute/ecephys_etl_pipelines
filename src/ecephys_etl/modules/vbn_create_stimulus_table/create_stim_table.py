@@ -834,7 +834,7 @@ def compute_vbn_block_frame_times(
             pd_interval_duration / (num_vsyncs_per_diode_toggle + total_delay)
         )
 
-        if total_delay > 0:
+        if abs(total_delay) > 0:
             # Correct for variability in vsync times
             variance_reduced_frame_diffs = (
                 np.round(
