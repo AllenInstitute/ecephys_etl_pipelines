@@ -192,7 +192,7 @@ def mock_sync_dataset_fixture(request):
         stim_line = keys[0]
 
         if stim_line == 4:
-            stim_line = 'stim_running'
+            stim_line = 'stim_photodiode'
 
         return np.sort(np.concatenate([
             get_rising_edges_map[stim_line],
@@ -568,28 +568,28 @@ def mock_behavior_pkl_fixture(request):
             # mock_behavior_pkl_fixture
             {
                 "image_set": "test_image_set",
-                "num_frames": 10,
+                "num_frames": 1000,
                 "reward_frames": np.array([4])
             },
             # mock_sync_dataset_fixture
             {
-                "line_labels": ["vsync_stim", "stim_running"],
+                "line_labels": ["vsync_stim", "stim_running", 'stim_photodiode'],
                 "get_falling_edges": {
-                    "vsync_stim": np.array(
-                        [1., 2., 4., 6., 8., 10., 12., 14., 16., 17.]
-                    ),
+                    "vsync_stim": np.arange(1,1000,1),
                     'stim_running': np.array(
-                        [1., 3., 4., 6., 8., 10., 12., 14., 16., 17.]
+                        [1]
                     ),
+                    'stim_photodiode': np.arange(0,1000,60),
                 },
 
                 "get_rising_edges": {
                     "vsync_stim": np.array(
-                        [1.5, 2.5, 4.5, 6.5, 8.5, 10.5, 12.5, 14.5, 16.5, 17.5]
+                        np.arange(.5,1000,1)
                     ),
                     'stim_running': np.array(
-                        [1., 2., 4., 6., 8., 10., 12., 14., 16., 17.]
+                        [1000]
                     ),
+                    'stim_photodiode': [],
                 },
             },
             # stim_presentations_df
@@ -614,7 +614,7 @@ def mock_behavior_pkl_fixture(request):
             #stim_start
             0,
             #stim_end
-            100,
+            1000,
             # frame_offset
             0,
             # block_offset
@@ -641,7 +641,7 @@ def mock_behavior_pkl_fixture(request):
     ],
     indirect=["mock_behavior_pkl_fixture", "mock_sync_dataset_fixture"]
 )
-# @pytest.mark.skip(reason="this test needs to be updated")
+
 def test_generate_behavior_stim_table(
     monkeypatch, mock_behavior_pkl_fixture, mock_sync_dataset_fixture,
     stim_presentations_df, stim_properties, stim_start, stim_end, frame_offset, block_offset,
