@@ -231,11 +231,11 @@ def mock_sync_dataset_fixture(request):
             [1, 1, 1, 1, 1],
             # tolerance
             0,
-            # expected expected behavior
+            # expected behavior
             [0, 1, 2, 3, 4],
-            # expected expected mapping
+            # expected mapping
             [1, 3, 5, 7, 9],
-            # expected expected replay
+            # expected replay
             [2,  4,  6,  8, 10],
             # warning
             False,
@@ -260,11 +260,11 @@ def mock_sync_dataset_fixture(request):
             [10, 1, 1, 1, 1],
             # tolerance
             0,
-            # expected expected behavior
+            # expected behavior
             [0, 1, 2, 3, 4],
-            # expected expected mapping
+            # expected mapping
             [1, 3, 5, 7, 9],
-            # expected expected replay
+            # expected replay
             [2,  4,  6,  8, 10],
             # warning
             "Number of frames derived from sync file",
@@ -289,11 +289,11 @@ def mock_sync_dataset_fixture(request):
             [3, 4],
             # tolerance
             0,
-            # expected expected behavior
+            # expected behavior
             [0, 5],
-            # expected expected mapping
+            # expected mapping
             [0.5, 11, 22],
-            # expected expected replay
+            # expected replay
             [10, 21, 32],
             # warning
             "Number of stim presentations obtained from sync (3) "
@@ -319,11 +319,11 @@ def mock_sync_dataset_fixture(request):
             [3, 2],
             # tolerance
             0,
-            # expected expected behavior
+            # expected behavior
             [0, 3],
-            # expected expected mapping
+            # expected mapping
             [0.5, 11, 22],
-            # expected expected replay
+            # expected replay
             [10, 21, 32],
             # warning
             "Number of stim presentations obtained from sync",
@@ -348,11 +348,11 @@ def mock_sync_dataset_fixture(request):
             [3, 2, 4, 5],
             # tolerance
             0,
-            # expected expected behavior
+            # expected behavior
             None,
-            # expected expected mapping
+            # expected mapping
             None,
-            # expected expected replay
+            # expected replay
             None,
             # warning
             False,
@@ -378,11 +378,11 @@ def mock_sync_dataset_fixture(request):
             [3, 5],
             # tolerance
             20,
-            # expected expected behavior
+            # expected behavior
             [0, 5],
-            # expected expected mapping
+            # expected mapping
             [0.5, 11, 22],
-            # expected expected replay
+            # expected replay
             [10, 21, 32],
             # warning
             "Number of stim presentations obtained from sync",
@@ -409,11 +409,11 @@ def mock_sync_dataset_fixture(request):
             [3, 6],
             # tolerance
             0,
-            # expected expected behavior
+            # expected behavior
             None,
-            # expected expected mapping
+            # expected mapping
             None,
-            # expected expected replay
+            # expected replay
             None,
             # warning
             False,
