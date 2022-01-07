@@ -13,34 +13,42 @@ from ecephys_etl.data_extractors.stim_file import (
 )
 from ecephys_etl.modules.vbn_create_stimulus_table import create_stim_table
 
+INDEX_TO_BEHAVIOR = 0
+INDEX_TO_MAPPING = 1
+INDEX_TO_REPLAY = 2
+
 
 @pytest.mark.parametrize(
-    "mock_line_labels, expected_line, falling_edges, warning",
+    "mock_line_labels, expected_line, falling_edges, rising_edges, warning",
     [
         # Basic tests
         (
             ["vsync_stim", "unrelated_line"],
             "vsync_stim",
-            np.array([0, 1, 2, 3, 4]),
+            np.array([0.1, 1, 2, 3, 4]),
+            np.array([0, 1.5, 2.5, 3.5, 4.5]),
             None
         ),
         (
             ["stim_vsync", "unrelated_line"],
             "stim_vsync",
             np.array([5, 6, 7, 8, 9]),
+            np.array([0, 1.5, 2.5, 3.5, 4.5]),
             None
         ),
         # Test that get_vsyncs will grab first relevant line label
         (
             ["vsync_stim", "stim_vsync", "unrelated_line"],
             "vsync_stim",
-            np.array([0, 1, 2, 3, 4]),
+            np.array([0.1, 1, 2, 3, 4]),
+            np.array([0, 1.5, 2.5, 3.5, 4.5]),
             None
         ),
         (
             ["stim_vsync", "vsync_stim", "unrelated_line"],
             "stim_vsync",
-            np.array([0, 1, 2, 3, 4]),
+            np.array([0.1, 1, 2, 3, 4]),
+            np.array([0, 1.5, 2.5, 3.5, 4.5]),
             None
         ),
         # Test that fallback is used and warning is raised if no relevant
@@ -49,17 +57,20 @@ from ecephys_etl.modules.vbn_create_stimulus_table import create_stim_table
             ["unrelated_line"],
             2,
             np.array([10, 11, 12, 13, 14]),
+            np.array([0, 1.5, 2.5, 3.5, 4.5]),
             "Could not find 'vsync_stim' nor 'stim_vsync' line labels"
         )
     ]
 )
 def test_get_vsyncs(
-    caplog, mock_line_labels, expected_line, falling_edges, warning
+    caplog, mock_line_labels, expected_line,
+    falling_edges, rising_edges, warning
 ):
     mock_dataset = MagicMock()
     mock_dataset.line_labels = mock_line_labels
     mock_dataset.dfile.filename = "/tmp/dummy_sync_path.sync"
     mock_dataset.get_falling_edges.return_value = falling_edges
+    mock_dataset.get_rising_edges.return_value = rising_edges
 
     with caplog.at_level(logging.WARNING):
         obt = create_stim_table.get_vsyncs(sync_dataset=mock_dataset)
@@ -156,7 +167,11 @@ def mock_sync_dataset_fixture(request):
         "line_labels", ["vsync_stim", "stim_running"]
     )
     get_rising_edges_map: dict = request.param.get(
-        "get_rising_edges", {"stim_running": np.array([1, 2, 3, 4, 5])}
+        "get_rising_edges", {
+            "stim_running": np.array([1.5, 2.5, 3.5, 4.5, 5.5]),
+            "vsync_stim": np.array([1, 2, 3, 4, 5])
+        },
+
     )
     get_falling_edges_map: dict = request.param.get(
         "get_falling_edges",
@@ -172,16 +187,30 @@ def mock_sync_dataset_fixture(request):
     def mock_get_falling_edges(stim_line, units, **kwargs):
         return get_falling_edges_map[stim_line]
 
+    def mock_get_edges(kind, keys, units, **kwargs):
+
+        stim_line = keys[0]
+
+        if stim_line == 4:
+            stim_line = 'stim_photodiode'
+
+        return np.sort(np.concatenate([
+            get_rising_edges_map[stim_line],
+            get_falling_edges_map[stim_line]
+        ]))
+
     mock_sync_dataset = create_autospec(Dataset, instance=True)
     mock_sync_dataset.line_labels = mock_line_labels
     mock_sync_dataset.get_rising_edges.side_effect = mock_get_rising_edges
     mock_sync_dataset.get_falling_edges.side_effect = mock_get_falling_edges
+    mock_sync_dataset.get_edges.side_effect = mock_get_edges
 
     return mock_sync_dataset
 
 
 @pytest.mark.parametrize(
-    "mock_sync_dataset_fixture, frame_counts, tolerance, expected, "
+    "mock_sync_dataset_fixture, frame_counts, "
+    "tolerance, expected_behavior, expected_mapping, expected_replay, "
     "warning, raises",
     [
         # Simple test case
@@ -190,6 +219,7 @@ def mock_sync_dataset_fixture(request):
             {
                 "line_labels": ["vsync_stim", "stim_running"],
                 "get_rising_edges": {
+                    "vsync_stim": np.array([.5, 2.5, 4.5, 6.5, 8.8]),
                     "stim_running": np.array([1, 3, 5, 7, 9])
                 },
                 "get_falling_edges": {
@@ -201,8 +231,12 @@ def mock_sync_dataset_fixture(request):
             [1, 1, 1, 1, 1],
             # tolerance
             0,
-            # expected frame offsets
+            # expected behavior
             [0, 1, 2, 3, 4],
+            # expected mapping
+            [1, 3, 5, 7, 9],
+            # expected replay
+            [2,  4,  6,  8, 10],
             # warning
             False,
             # raises
@@ -214,6 +248,7 @@ def mock_sync_dataset_fixture(request):
             {
                 "line_labels": ["vsync_stim", "stim_running"],
                 "get_rising_edges": {
+                    "vsync_stim": np.array([.5, 2.5, 4.5, 6.5, 8.5]),
                     "stim_running": np.array([1, 3, 5, 7, 9])
                 },
                 "get_falling_edges": {
@@ -225,8 +260,12 @@ def mock_sync_dataset_fixture(request):
             [10, 1, 1, 1, 1],
             # tolerance
             0,
-            # expected frame offsets
+            # expected behavior
             [0, 1, 2, 3, 4],
+            # expected mapping
+            [1, 3, 5, 7, 9],
+            # expected replay
+            [2,  4,  6,  8, 10],
             # warning
             "Number of frames derived from sync file",
             # raises
@@ -238,7 +277,8 @@ def mock_sync_dataset_fixture(request):
             {
                 "line_labels": ["vsync_stim", "stim_running"],
                 "get_rising_edges": {
-                    "stim_running": np.array([0, 11, 22])
+                    "vsync_stim": np.array([0, 10.5, 21.5]),
+                    "stim_running": np.array([.5, 11, 22])
                 },
                 "get_falling_edges": {
                     "vsync_stim": np.array([1, 2, 3, 13, 14, 23, 24, 25, 26]),
@@ -249,10 +289,15 @@ def mock_sync_dataset_fixture(request):
             [3, 4],
             # tolerance
             0,
-            # expected frame offsets
+            # expected behavior
             [0, 5],
+            # expected mapping
+            [0.5, 11, 22],
+            # expected replay
+            [10, 21, 32],
             # warning
-            "Number of stim presentations obtained from sync",
+            "Number of stim presentations obtained from sync (3) "
+            "higher than number expected (2). Inferring start frames.",
             # raises
             False
         ),
@@ -262,7 +307,8 @@ def mock_sync_dataset_fixture(request):
             {
                 "line_labels": ["vsync_stim", "stim_running"],
                 "get_rising_edges": {
-                    "stim_running": np.array([0, 11, 22])
+                    "vsync_stim": np.array([0, 10.5, 21.5]),
+                    "stim_running": np.array([.5, 11, 22])
                 },
                 "get_falling_edges": {
                     "vsync_stim": np.array([1, 2, 3, 13, 14, 23, 24, 25, 26]),
@@ -273,8 +319,12 @@ def mock_sync_dataset_fixture(request):
             [3, 2],
             # tolerance
             0,
-            # expected frame offsets
+            # expected behavior
             [0, 3],
+            # expected mapping
+            [0.5, 11, 22],
+            # expected replay
+            [10, 21, 32],
             # warning
             "Number of stim presentations obtained from sync",
             # raises
@@ -286,7 +336,8 @@ def mock_sync_dataset_fixture(request):
             {
                 "line_labels": ["vsync_stim", "stim_running"],
                 "get_rising_edges": {
-                    "stim_running": np.array([0, 11, 22])
+                    "vsync_stim": np.array([0, 10.5, 21.5]),
+                    "stim_running": np.array([.5, 11, 22])
                 },
                 "get_falling_edges": {
                     "vsync_stim": np.array([1, 2, 3, 13, 14, 23, 24, 25, 26]),
@@ -297,7 +348,11 @@ def mock_sync_dataset_fixture(request):
             [3, 2, 4, 5],
             # tolerance
             0,
-            # expected frame offsets
+            # expected behavior
+            None,
+            # expected mapping
+            None,
+            # expected replay
             None,
             # warning
             False,
@@ -311,7 +366,8 @@ def mock_sync_dataset_fixture(request):
             {
                 "line_labels": ["vsync_stim", "stim_running"],
                 "get_rising_edges": {
-                    "stim_running": np.array([0, 11, 22])
+                    "vsync_stim": np.array([0, 10.5, 21.5]),
+                    "stim_running": np.array([.5, 11, 22])
                 },
                 "get_falling_edges": {
                     "vsync_stim": np.array([1, 2, 3, 13, 14, 23, 24, 25, 26]),
@@ -322,8 +378,12 @@ def mock_sync_dataset_fixture(request):
             [3, 5],
             # tolerance
             20,
-            # expected frame offsets
+            # expected behavior
             [0, 5],
+            # expected mapping
+            [0.5, 11, 22],
+            # expected replay
+            [10, 21, 32],
             # warning
             "Number of stim presentations obtained from sync",
             # raises
@@ -337,7 +397,8 @@ def mock_sync_dataset_fixture(request):
             {
                 "line_labels": ["vsync_stim", "stim_running"],
                 "get_rising_edges": {
-                    "stim_running": np.array([0, 11, 22])
+                    "vsync_stim": np.array([0, 10.5, 21.5]),
+                    "stim_running": np.array([.5, 11, 22])
                 },
                 "get_falling_edges": {
                     "vsync_stim": np.array([1, 2, 3, 13, 14, 23, 24, 25, 26]),
@@ -348,7 +409,11 @@ def mock_sync_dataset_fixture(request):
             [3, 6],
             # tolerance
             0,
-            # expected frame offsets
+            # expected behavior
+            None,
+            # expected mapping
+            None,
+            # expected replay
             None,
             # warning
             False,
@@ -358,10 +423,9 @@ def mock_sync_dataset_fixture(request):
     ],
     indirect=["mock_sync_dataset_fixture"]
 )
-@pytest.mark.skip(reason="this needs to be updated")
 def test_get_frame_offsets(
     caplog, mock_sync_dataset_fixture, frame_counts, tolerance,
-    expected, warning, raises
+    expected_behavior, expected_mapping, expected_replay, warning, raises
 ):
     if raises:
         with pytest.raises(RuntimeError, match=raises):
@@ -380,7 +444,9 @@ def test_get_frame_offsets(
         if warning:
             assert warning in caplog.text
 
-        assert np.allclose(expected, obt)
+        assert np.allclose(expected_behavior, obt[INDEX_TO_BEHAVIOR])
+        assert np.allclose(expected_mapping, obt[INDEX_TO_MAPPING])
+        assert np.allclose(expected_replay, obt[INDEX_TO_REPLAY])
 
 
 @pytest.mark.parametrize(
@@ -484,24 +550,41 @@ def mock_behavior_pkl_fixture(request):
 
 @pytest.mark.parametrize(
     "mock_behavior_pkl_fixture, mock_sync_dataset_fixture,"
-    "stim_presentations_df, stim_properties, frame_offset,"
+    "stim_presentations_df, stim_properties, "
+    "stim_start, stim_end, frame_offset,"
     "block_offset, expected",
     [
         (
             # mock_behavior_pkl_fixture
             {
                 "image_set": "test_image_set",
-                "num_frames": 10,
+                "num_frames": 1000,
                 "reward_frames": np.array([4])
             },
             # mock_sync_dataset_fixture
             {
-                "line_labels": ["vsync_stim"],
+                "line_labels": [
+                    "vsync_stim",
+                    "stim_running",
+                    'stim_photodiode'
+                ],
                 "get_falling_edges": {
-                    "vsync_stim": np.array(
-                        [1., 2., 4., 6., 8., 10., 12., 14., 16., 17.]
+                    "vsync_stim": np.arange(1, 1000, 1),
+                    'stim_running': np.array(
+                        [1]
                     ),
-                }
+                    'stim_photodiode': np.arange(0, 1000, 60),
+                },
+
+                "get_rising_edges": {
+                    "vsync_stim": np.array(
+                        np.arange(.5, 1000, 1)
+                    ),
+                    'stim_running': np.array(
+                        [1000]
+                    ),
+                    'stim_photodiode': [],
+                },
             },
             # stim_presentations_df
             pd.DataFrame({
@@ -522,6 +605,10 @@ def mock_behavior_pkl_fixture(request):
                 "is_change": [False, False, True, False, False],
                 "rewarded": [False, False, True, False, False]
             },
+            # stim_start
+            0,
+            # stim_end
+            1000,
             # frame_offset
             0,
             # block_offset
@@ -548,10 +635,10 @@ def mock_behavior_pkl_fixture(request):
     ],
     indirect=["mock_behavior_pkl_fixture", "mock_sync_dataset_fixture"]
 )
-@pytest.mark.skip(reason="this test needs to be updated")
 def test_generate_behavior_stim_table(
     monkeypatch, mock_behavior_pkl_fixture, mock_sync_dataset_fixture,
-    stim_presentations_df, stim_properties, frame_offset, block_offset,
+    stim_presentations_df, stim_properties, stim_start,
+    stim_end, frame_offset, block_offset,
     expected
 ):
     # Set up mocks that need to be patched in
@@ -580,6 +667,8 @@ def test_generate_behavior_stim_table(
         obt = create_stim_table.generate_behavior_stim_table(
             mock_behavior_pkl_fixture,
             mock_sync_dataset_fixture,
+            stim_start,
+            stim_end,
             frame_offset,
             block_offset
         )
@@ -655,7 +744,7 @@ def test_check_behavior_and_replay_pkl_match(
 
 
 @pytest.mark.parametrize(
-    "mock_replay_pkl_fixture, mock_sync_dataset_fixture,"
+    "mock_replay_pkl_fixture, mock_sync_dataset_fixture, stim_start, stim_end,"
     "behavior_stim_table, block_offset, frame_offset, expected",
     [
         (
@@ -667,7 +756,7 @@ def test_check_behavior_and_replay_pkl_match(
             },
             # mock_sync_dataset_fixture
             {
-                "line_labels": ["vsync_stim"],
+                "line_labels": ["vsync_stim", 'stim_running'],
                 "get_falling_edges": {
                     "vsync_stim": np.array(
                         # Behavior frame times
@@ -677,8 +766,33 @@ def test_check_behavior_and_replay_pkl_match(
                         # Replay frame times
                         + [31., 32., 34., 35., 38., 40., 43., 44., 46., 47.]
                     ),
-                }
+                    "stim_running": np.array(
+                        [1.5, 10, 20, 30, 40, 50., 60]
+                    ),
+                },
+
+                "get_rising_edges": {
+                    "vsync_stim": np.array(
+                        # Behavior frame times
+                        [1.1, 2.1, 4.1, 6.1, 8.1, 10.1,
+                            12.1, 14.1, 16.1, 17.1]
+                        # Mapping frame times
+                        + [18.1, 19.1, 20.1, 21.1, 22.1, 23.1,
+                            24.1, 25.1, 26.1, 27.1]
+                        # Replay frame times
+                        + [31.1, 32.1, 34.1, 35.1, 38.1, 40.1,
+                            43.1, 44.1, 46.1, 47.1]
+                    ),
+                    'stim_running': np.array(
+                        [2., 25, 35., 45., 55., 65., 75]
+                    ),
+                },
             },
+            # stim_start
+            0,
+            # stim_end
+            1000,
+
             # behavior_stim_table
             pd.DataFrame({
                 "stimulus_presentations_id": [0, 1, 2, 3, 4],
@@ -725,7 +839,8 @@ def test_check_behavior_and_replay_pkl_match(
 )
 @pytest.mark.skip(reason="this test needs to be updated")
 def test_generate_replay_stim_table(
-    monkeypatch, mock_replay_pkl_fixture, mock_sync_dataset_fixture,
+    monkeypatch, mock_replay_pkl_fixture,
+    mock_sync_dataset_fixture, stim_start, stim_end,
     behavior_stim_table, block_offset, frame_offset, expected
 ):
 
@@ -744,6 +859,8 @@ def test_generate_replay_stim_table(
         obt = create_stim_table.generate_replay_stim_table(
             mock_replay_pkl_fixture,
             mock_sync_dataset_fixture,
+            stim_start,
+            stim_end,
             behavior_stim_table,
             block_offset,
             frame_offset
@@ -771,7 +888,7 @@ def mock_mapping_pkl_fixture(request):
 
 @pytest.mark.parametrize(
     "mock_mapping_pkl_fixture, mock_sync_dataset_fixture,"
-    "mock_create_stim_table_return, frame_offset, expected",
+    "mock_create_stim_table_return, frame_start, frame_end, expected",
     [
         (
             # mock_mapping_pkl_fixture (just use defaults)
@@ -805,8 +922,10 @@ def mock_mapping_pkl_fixture(request):
                 "stimulus_index": [np.nan, 0.0, 0.0, 1.0, 1.0],
                 "Color": [np.nan, np.nan, np.nan, -1.0, 1.0]
             }),
-            # frame_offset
+            # frame_start
             10,
+            # frame_end
+            20,
             # expected
             pd.DataFrame({
                 "start_frame": [10, 14, 15, 17, 18],
@@ -859,8 +978,10 @@ def mock_mapping_pkl_fixture(request):
                 "stimulus_index": [np.nan, 0.0, 0.0, 1.0, 1.0, np.nan],
                 "Color": [np.nan, np.nan, np.nan, -1.0, 1.0, np.nan]
             }),
-            # frame_offset
+            # frame_start
             10,
+            # frame_end
+            20,
             # expected
             pd.DataFrame({
                 "start_frame": [10, 14, 15, 17, 18, 19],
@@ -887,7 +1008,7 @@ def mock_mapping_pkl_fixture(request):
 @pytest.mark.skip(reason="this test needs to be updated")
 def test_generate_mapping_stim_table(
     monkeypatch, mock_mapping_pkl_fixture, mock_sync_dataset_fixture,
-    mock_create_stim_table_return, frame_offset, expected
+    mock_create_stim_table_return, frame_start, frame_end, expected
 ):
 
     # Set up mocks that need to be patched in
@@ -906,7 +1027,8 @@ def test_generate_mapping_stim_table(
         obt = create_stim_table.generate_mapping_stim_table(
             mock_mapping_pkl_fixture,
             mock_sync_dataset_fixture,
-            frame_offset
+            frame_start,
+            frame_end
         )
 
     pd.testing.assert_frame_equal(expected, obt)
