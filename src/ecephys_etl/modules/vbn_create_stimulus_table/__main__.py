@@ -37,7 +37,8 @@ class VbnCreateStimulusTable(argschema.ArgSchemaParser):
             sync_dataset=sync_data,
             behavior_pkl=behavior_data,
             mapping_pkl=mapping_data,
-            replay_pkl=replay_data
+            replay_pkl=replay_data,
+            frame_time_offset=self.args["frame_time_offset"]
         )
         stim_table.to_csv(path_or_buf=output_path, index=False)
 
