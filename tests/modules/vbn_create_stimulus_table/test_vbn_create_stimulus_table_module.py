@@ -117,7 +117,8 @@ def test_vbn_create_stimulus_table(
         sync_dataset=MockDataset.return_value,
         behavior_pkl=MockBehaviorPickleFile.factory.return_value,
         mapping_pkl=MockCamStimOnePickleStimFile.factory.return_value,
-        replay_pkl=MockReplayPickleFile.factory.return_value
+        replay_pkl=MockReplayPickleFile.factory.return_value,
+        frame_time_offset=0.008
     )
 
     assert output_path.exists()

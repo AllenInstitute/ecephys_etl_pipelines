@@ -1,5 +1,5 @@
 from argschema import ArgSchema
-from argschema.fields import (LogLevel, InputFile, Nested, OutputFile)
+from argschema.fields import (LogLevel, InputFile, Nested, OutputFile, Float)
 
 from ecephys_etl.schemas.fields import OutputFileExists
 
@@ -44,6 +44,16 @@ class VbnCreateStimulusTableInputSchema(ArgSchema):
             "rewards."
         )
     )
+    frame_time_offset = Float(
+        required=False,
+        default=0.008,
+        allow_none=False,
+        description=(
+            "Scalar value (in seconds) to be added to the "
+            "start_time and stop_time columns based on empirical "
+            "hardware measurements (default value is taken from "
+            "experiments done leading up to the VBN 2022 data "
+            "release)"))
     output_stimulus_table_path = OutputFile(
         required=True,
         description=(

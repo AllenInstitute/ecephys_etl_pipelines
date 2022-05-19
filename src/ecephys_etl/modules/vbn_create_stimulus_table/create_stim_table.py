@@ -1215,7 +1215,8 @@ def create_vbn_stimulus_table(
     sync_dataset: Dataset,
     behavior_pkl: BehaviorPickleFile,
     mapping_pkl: CamStimOnePickleStimFile,
-    replay_pkl: ReplayPickleFile
+    replay_pkl: ReplayPickleFile,
+    frame_time_offset: float = 0.0,
 ) -> pd.DataFrame:
     """Create a stimulus table that encompasses all 'blocks' of stimuli
     presented during a visual behavior neuropixels session
@@ -1236,6 +1237,9 @@ def create_vbn_stimulus_table(
     replay_pkl : ReplayPickleFile
         A ReplayPickleFile object, that allows easier access to key
         replay pickle file data and metadata.
+    frame_time_offset: float
+        Offset (in seconds) to be added to the start_time and stop_time
+        columns to accommodate hardware behavior
 
     Returns
     -------
@@ -1290,5 +1294,8 @@ def create_vbn_stimulus_table(
 
     full_stim_df = pd.concat([behavior_df, mapping_df, replay_df], sort=False)
     full_stim_df.reset_index(drop=True, inplace=True)
+
+    full_stim_df.start_time += frame_time_offset
+    full_stim_df.stop_time += frame_time_offset
 
     return full_stim_df

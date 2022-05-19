@@ -177,15 +177,15 @@ def test_get_draw_epochs(behavior_stimuli_data_fixture,
                                           ([0] + [1] * 3 + [0] * 3)
                                           * 2 + [0])},
                               {"duration": [3.0, 2.0, 3.0, 2.0],
-                               "end_frame": [5.0, 5.0, 12.0, 12.0],
+                               "end_frame": [4.0, 4.0, 11.0, 11.0],
                                "image_name": [np.NaN, 'im065', np.NaN,
                                               'im064'],
                                "index": [2, 0, 3, 1],
                                "omitted": [False, False, False, False],
                                "orientation": [90, np.NaN, 270, np.NaN],
-                               "start_frame": [2.0, 3.0, 9.0, 10.0],
-                               "start_time": [2, 3, 9, 10],
-                               "stop_time": [5, 5, 12, 12]})
+                               "start_frame": [1.0, 2.0, 8.0, 9.0],
+                               "start_time": [1, 2, 8, 9],
+                               "stop_time": [4, 4, 11, 11]})
                          ], indirect=['behavior_stimuli_time_fixture',
                                       'behavior_stimuli_data_fixture'])
 def test_get_stimulus_presentations(behavior_stimuli_time_fixture,
@@ -196,8 +196,9 @@ def test_get_stimulus_presentations(behavior_stimuli_time_fixture,
         behavior_stimuli_time_fixture)
 
     expected_df = pd.DataFrame.from_dict(expected)
+    expected_df.index.name = 'stimulus_presentations_id'
 
-    assert presentations_df.equals(expected_df)
+    pd.testing.assert_frame_equal(presentations_df, expected_df)
 
 
 @pytest.mark.parametrize("behavior_stimuli_time_fixture,"
@@ -219,9 +220,9 @@ def test_get_stimulus_presentations(behavior_stimuli_time_fixture,
                                           * 2 + [0])},
                               {"orientation": [90, None, 270, None],
                                "image_name": [None, 'im065', None, 'im064'],
-                               "frame": [2.0, 3.0, 9.0, 10.0],
-                               "end_frame": [5.0, 5.0, 12.0, 12.0],
-                               "time": [2.0, 3.0, 9.0, 10.0],
+                               "frame": [1.0, 2.0, 8.0, 9.0],
+                               "end_frame": [4.0, 4.0, 11.0, 11.0],
+                               "time": [1.0, 2.0, 8.0, 9.0],
                                "duration": [3.0, 2.0, 3.0, 2.0],
                                "omitted": [False, False, False, False]}),
 
@@ -243,9 +244,9 @@ def test_get_stimulus_presentations(behavior_stimuli_time_fixture,
                                           [0] * 17 + [1] * 11 + [0, 0])},
                               {"orientation": [None, None, 90, 270],
                                "image_name": ['im065', 'im064', None, None],
-                               "frame": [3.0, 10.0, 18.0, 25.0],
-                               "end_frame": [5.0, 12.0, 25.0, 29.0],
-                               "time": [3.0, 10.0, 18.0, 25.0],
+                               "frame": [2.0, 9.0, 17.0, 24.0],
+                               "end_frame": [4.0, 11.0, 24.0, 28.0],
+                               "time": [2.0, 9.0, 17.0, 24.0],
                                "duration": [2.0, 2.0, 7.0, 4.0],
                                "omitted": [False, False, False, False]})
                          ],
@@ -259,4 +260,4 @@ def test_get_visual_stimuli_df(behavior_stimuli_time_fixture,
     stimuli_df = stimuli_df.drop('index', axis=1)
 
     expected_df = pd.DataFrame.from_dict(expected_data)
-    assert stimuli_df.equals(expected_df)
+    pd.testing.assert_frame_equal(stimuli_df, expected_df)
